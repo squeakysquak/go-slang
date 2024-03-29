@@ -112,9 +112,13 @@ import * as fs from 'fs';
 
 import OpCodes from './opcodes'
 
-let Instrs: Instruction[] = []
+class Frame {
+    [Key: string]: number | boolean;
+}
+
+let Instrs: Instruction [] = []
 let PC = 0
-let ENV = {}
+let ENV: Frame[] = [new Frame()]
 let OS: any[] = []
 let RTS: any[] = []
 
@@ -176,7 +180,9 @@ function addNullaryInstruction(opCode: number) {
   }
   
 //Environment-related stuff
-
+function addMappingToCurrentFrame(identifier: string, value: number | boolean){
+    ENV[0][identifier] = value;
+}
 
 // Create the lexer and parser
 let input = fs.readFileSync('tests/constants.go','utf8');
@@ -195,12 +201,16 @@ class GoCompiler implements GoParserListener{
 
     enterStatement? (ctx: StatementContext): void {
         console.log("Statement: " + ctx.text);
+        addNullaryInstruction(OpCodes.POPG);
     }
 
     exitVarSpec?: ((ctx: VarSpecContext) => void) | undefined = (ctx:VarSpecContext) =>{
         let identifiers = ctx.identifierList().IDENTIFIER();
-        for(let i = identifiers.length -1 ; i >= 0; i--){
+        for(let i = identifiers.length - 1 ; i >= 0; i--){
             //console.log(identifiers[i].text);
+            if (i < identifiers.length - 1){
+                addNullaryInstruction(OpCodes.POPG);
+            }
             addUnaryInstruction(OpCodes.ASSIGN, identifiers[i].text);
         }
     };
@@ -240,7 +250,7 @@ const compiler: GoParserListener = new GoCompiler();
 
 ParseTreeWalker.DEFAULT.walk(compiler,tree);
 
-console.log(Instrs);
+console.log("Compiled instructions: ", Instrs);
 
 addNullaryInstruction(OpCodes.DONE);
 
@@ -249,11 +259,16 @@ function run(){
         const instr = Instrs[PC++]
         microcode(instr);
     }
+    console.log("Environment: ", ENV);
+    console.log("Operand Stack: ", OS);
     console.log("evaluated: " + OS.pop());
 }
 
 function microcode(instr: Instruction){
     switch (instr[0]){
+        case OpCodes.POPG:
+            OS.pop();
+            break;
         case OpCodes.LDCI:
             OS.push(instr[1])
             break;
@@ -261,6 +276,13 @@ function microcode(instr: Instruction){
             let op1 = OS.pop();
             let op2 = OS.pop();
             OS.push(op1 + op2);
+            break;
+        case OpCodes.ASSIGN:
+            const identifier = instr[1] as string;
+            const value = OS[OS.length-1];
+            addMappingToCurrentFrame(identifier, value);
+            //console.log(ENV);
+            //console.log(OS);
             break;
     }
 }
