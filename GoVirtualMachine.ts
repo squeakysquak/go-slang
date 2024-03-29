@@ -184,6 +184,18 @@ function addMappingToCurrentFrame(identifier: string, value: number | boolean){
     ENV[0][identifier] = value;
 }
 
+function lookupIdentifier(identifier: string){
+    //console.log("lookup for " + identifier);
+    for(let i = 0; i < ENV.length; i++){
+        let currentFrame : Frame = ENV[i];
+        if (currentFrame[identifier] != undefined) {
+            //console.log("FOUND: " + currentFrame[identifier]);
+            return currentFrame[identifier];
+        }
+    }
+    return undefined;
+}
+
 // Create the lexer and parser
 let input = fs.readFileSync('tests/constants.go','utf8');
 let inputStream = new ANTLRInputStream(input); //test input, need to somehow link this to use SourceAcademy instead
@@ -206,6 +218,7 @@ class GoCompiler implements GoParserListener{
 
     exitVarSpec?: ((ctx: VarSpecContext) => void) | undefined = (ctx:VarSpecContext) =>{
         let identifiers = ctx.identifierList().IDENTIFIER();
+        console.log("var spec: " + ctx.text);
         for(let i = identifiers.length - 1 ; i >= 0; i--){
             //console.log(identifiers[i].text);
             if (i < identifiers.length - 1){
@@ -241,8 +254,6 @@ class GoCompiler implements GoParserListener{
     };
 
     enterOperand?: ((ctx: OperandContext) => void) | undefined = (ctx: OperandContext) => {
-        console.log("operand: " + ctx.text)
-
         if (ctx.literal() != undefined){
             const literal = ctx.literal(); //LiteralContext
 
@@ -250,16 +261,20 @@ class GoCompiler implements GoParserListener{
                 const basicLiteral = literal.basicLit()
 
                 if(basicLiteral?.integer() != undefined){
-                    //console.log("hi");
+                    console.log("operand (int): " + ctx.text)
                     addUnaryInstruction(OpCodes.LDCI, parseInt(ctx.text as string));
                 }
             }
+        }else if (ctx.operandName() != undefined){
+            const name = ctx.operandName();
+            console.log("operand (name): "+ ctx.text);
+            addUnaryInstruction(OpCodes.LDC, ctx.text);
         }
     }
 
     exitAssignment?: ((ctx: AssignmentContext) => void) | undefined = (ctx: AssignmentContext) => {
-        console.log("assignment: "+ ctx.expressionList(0).text);
-        addUnaryInstruction(OpCodes.ASSIGN, ctx.expressionList(0).text);
+        console.log("assignment: " + ctx.expressionList(0).text);
+        addUnaryInstruction(OpCodes.REASSIGN, ctx.expressionList(0).text);
     }
 }
 
@@ -275,10 +290,12 @@ function run(){
     while(Instrs[PC][0] != OpCodes.DONE){
         const instr = Instrs[PC++]
         microcode(instr);
+        //console.log(instr[0]);
+        //console.log("Operand Stack: ", OS);
     }
-    console.log("Environment: ", ENV);
-    console.log("Operand Stack: ", OS);
-    console.log("evaluated: " + OS.pop());
+    console.log("Final Environment: ", ENV);
+    console.log("Final Operand Stack: ", OS);
+    console.log("Evaluated: " + OS.pop());
 }
 
 function microcode(instr: Instruction){
@@ -310,11 +327,30 @@ function microcode(instr: Instruction){
             OS.push(B / A);
             break;
         case OpCodes.ASSIGN:
-            const identifier = instr[1] as string;
-            const value = OS[OS.length-1];
-            addMappingToCurrentFrame(identifier, value);
+            A = instr[1] as string;
+            B = OS[OS.length-1];
+            addMappingToCurrentFrame(A, B);
             //console.log(ENV);
             //console.log(OS);
+            break;
+        case OpCodes.REASSIGN:
+            //console.log(PC);
+            //console.log(OS);
+            //console.log(ENV);
+            A = OS[OS.length-1];
+            B = instr[1];
+            OS.pop();
+            OS.pop();
+            OS.push(A);
+            addMappingToCurrentFrame(B, A);
+            //console.log(OS);
+            //console.log(ENV);
+            break;
+        case OpCodes.LDC:
+            A = instr[1] as string;
+            OS.push(lookupIdentifier(A));
+            //console.log("ENV: ", ENV);
+            //console.log("OS: ", OS);
             break;
     }
 }
