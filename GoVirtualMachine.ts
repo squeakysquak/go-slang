@@ -256,6 +256,11 @@ class GoCompiler implements GoParserListener{
             }
         }
     }
+
+    exitAssignment?: ((ctx: AssignmentContext) => void) | undefined = (ctx: AssignmentContext) => {
+        console.log("assignment: "+ ctx.expressionList(0).text);
+        addUnaryInstruction(OpCodes.ASSIGN, ctx.expressionList(0).text);
+    }
 }
 
 const compiler: GoParserListener = new GoCompiler();
