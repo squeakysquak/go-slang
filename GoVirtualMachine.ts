@@ -148,7 +148,7 @@ export type Address = [
 ]
 export type Argument = number | boolean | string | Offset | Address
 export type Instruction = [
-    number, // opcode
+    string, // opcode
     Argument?,
     Argument?
 ]
@@ -164,17 +164,17 @@ export type Program = [
 ]
 
 //Instruction adding 
-function addNullaryInstruction(opCode: number) {
+function addNullaryInstruction(opCode: string) {
     const ins: Instruction = [opCode]
     Instrs.push(ins)
   }
   
-  function addUnaryInstruction(opCode: number, arg1: Argument) {
+  function addUnaryInstruction(opCode: string, arg1: Argument) {
     const ins: Instruction = [opCode, arg1]
     Instrs.push(ins)
   }
   
-  function addBinaryInstruction(opCode: number, arg1: Argument, arg2: Argument) {
+  function addBinaryInstruction(opCode: string, arg1: Argument, arg2: Argument) {
     const ins: Instruction = [opCode, arg1, arg2]
     Instrs.push(ins)
   }
@@ -201,7 +201,7 @@ class GoCompiler implements GoParserListener{
 
     enterStatement? (ctx: StatementContext): void {
         console.log("Statement: " + ctx.text);
-        addNullaryInstruction(OpCodes.POPG);
+        addNullaryInstruction(OpCodes.POP);
     }
 
     exitVarSpec?: ((ctx: VarSpecContext) => void) | undefined = (ctx:VarSpecContext) =>{
@@ -209,7 +209,7 @@ class GoCompiler implements GoParserListener{
         for(let i = identifiers.length - 1 ; i >= 0; i--){
             //console.log(identifiers[i].text);
             if (i < identifiers.length - 1){
-                addNullaryInstruction(OpCodes.POPG);
+                addNullaryInstruction(OpCodes.POP);
             }
             addUnaryInstruction(OpCodes.ASSIGN, identifiers[i].text);
         }
@@ -224,7 +224,7 @@ class GoCompiler implements GoParserListener{
         // Add your code here
         if (ctx.PLUS() != undefined){
             console.log(ctx.PLUS()?.text);
-            addNullaryInstruction(OpCodes.ADDG);
+            addNullaryInstruction(OpCodes.ADD);
         }
     };
 
@@ -266,13 +266,13 @@ function run(){
 
 function microcode(instr: Instruction){
     switch (instr[0]){
-        case OpCodes.POPG:
+        case OpCodes.POP:
             OS.pop();
             break;
         case OpCodes.LDCI:
             OS.push(instr[1])
             break;
-        case OpCodes.ADDG:
+        case OpCodes.ADD:
             let op1 = OS.pop();
             let op2 = OS.pop();
             OS.push(op1 + op2);
