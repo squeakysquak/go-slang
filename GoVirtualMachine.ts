@@ -159,6 +159,7 @@ export type Program = [
     GoVMFunction[]
 ]
 
+//Instruction adding 
 function addNullaryInstruction(opCode: number) {
     const ins: Instruction = [opCode]
     Instrs.push(ins)
@@ -174,6 +175,8 @@ function addNullaryInstruction(opCode: number) {
     Instrs.push(ins)
   }
   
+//Environment-related stuff
+
 
 // Create the lexer and parser
 let input = fs.readFileSync('tests/constants.go','utf8');
@@ -183,6 +186,7 @@ let tokenStream = new CommonTokenStream(lexer);
 let parser = new GoParser(tokenStream);
 
 let tree = parser.sourceFile(); //Parse tree object
+console.log(tree.toStringTree(parser)); //prints tree, kind of unreadable though
 
 class GoCompiler implements GoParserListener{
     enterPackageClause? (ctx: PackageClauseContext): void{
@@ -193,9 +197,13 @@ class GoCompiler implements GoParserListener{
         console.log("Statement: " + ctx.text);
     }
 
-    enterShortVarDecl?: ((ctx: ShortVarDeclContext) => void) | undefined = (ctx: ShortVarDeclContext) => {
-        console.log("short var decl: " + ctx.text);
-    }
+    exitVarSpec?: ((ctx: VarSpecContext) => void) | undefined = (ctx:VarSpecContext) =>{
+        let identifiers = ctx.identifierList().IDENTIFIER();
+        for(let i = identifiers.length -1 ; i >= 0; i--){
+            //console.log(identifiers[i].text);
+            addUnaryInstruction(OpCodes.ASSIGN, identifiers[i].text);
+        }
+    };
 
     enterArguments?: ((ctx: ArgumentsContext) => void) | undefined = (ctx: ArgumentsContext) => {
         // Add your code here

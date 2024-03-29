@@ -84,6 +84,7 @@ export enum OpCodes {
   NEQG = 82,
   NEQF = 83,
   NEQB = 84,
+  ASSIGN = 85,
 
   // custom opcodes
   ARRAY_LEN = 1000,
