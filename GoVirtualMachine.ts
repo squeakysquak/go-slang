@@ -234,38 +234,71 @@ class GoCompiler implements GoParserListener{
     };
 
     exitExpression?: ((ctx: ExpressionContext) => void) | undefined =  (ctx: ExpressionContext) => {
-        // Add your code here
-        if (ctx.PLUS() != undefined){
-            console.log(ctx.PLUS()?.text);
-            addNullaryInstruction(OpCodes.ADD);
-        }
-        else if (ctx.MINUS() != undefined){
-            console.log(ctx.MINUS()?.text);
-            addNullaryInstruction(OpCodes.MINUS);
-        }
-        else if (ctx.DIV() != undefined){
-            console.log(ctx.DIV()?.text);
-            addNullaryInstruction(OpCodes.DIV);
-        }
-        else if (ctx.STAR() != undefined){
-            console.log(ctx.STAR()?.text);
-            addNullaryInstruction(OpCodes.MULT);
-        }
-        else if (ctx.MOD() != undefined){
-            console.log(ctx.MOD()?.text);
-            addNullaryInstruction(OpCodes.MOD);
-        }
-        else if (ctx.LOGICAL_OR() != undefined){
-            console.log(ctx.LOGICAL_OR()?.text);
-            addNullaryInstruction(OpCodes.OR);
-        }
-        else if (ctx.LOGICAL_AND() != undefined){
-            console.log(ctx.LOGICAL_AND()?.text);
-            addNullaryInstruction(OpCodes.AND);
-        }
-        else if (ctx.EXCLAMATION() != undefined){
-            console.log(ctx.EXCLAMATION()?.text);
-            addNullaryInstruction(OpCodes.NOT);
+        if (ctx._unary_op != undefined){
+
+            console.log("unary op:", ctx.text)
+            if (ctx.MINUS() != undefined){
+                console.log(ctx.MINUS()?.text);
+                addNullaryInstruction(OpCodes.NEGATIVE);
+            }
+            else if (ctx.EXCLAMATION() != undefined){
+                console.log(ctx.EXCLAMATION()?.text);
+                addNullaryInstruction(OpCodes.NOT);
+            }
+        }else{ //Binary operations
+
+            if (ctx.PLUS() != undefined){
+                console.log(ctx.PLUS()?.text);
+                addNullaryInstruction(OpCodes.ADD);
+            }
+            else if (ctx.MINUS() != undefined){
+                console.log(ctx.MINUS()?.text);
+                addNullaryInstruction(OpCodes.MINUS);
+            }
+            else if (ctx.DIV() != undefined){
+                console.log(ctx.DIV()?.text);
+                addNullaryInstruction(OpCodes.DIV);
+            }
+            else if (ctx.STAR() != undefined){
+                console.log(ctx.STAR()?.text);
+                addNullaryInstruction(OpCodes.MULT);
+            }
+            else if (ctx.MOD() != undefined){
+                console.log(ctx.MOD()?.text);
+                addNullaryInstruction(OpCodes.MOD);
+            }
+            else if (ctx.LOGICAL_OR() != undefined){
+                console.log(ctx.LOGICAL_OR()?.text);
+                addNullaryInstruction(OpCodes.OR);
+            }
+            else if (ctx.LOGICAL_AND() != undefined){
+                console.log(ctx.LOGICAL_AND()?.text);
+                addNullaryInstruction(OpCodes.AND);
+            }
+            else if (ctx.EQUALS() != undefined){
+                console.log(ctx.EQUALS()?.text);
+                addNullaryInstruction(OpCodes.EQUALS);
+            }
+            else if (ctx.NOT_EQUALS() != undefined){
+                console.log(ctx.NOT_EQUALS()?.text);
+                addNullaryInstruction(OpCodes.NOT_EQUALS);
+            }
+            else if (ctx.LESS() != undefined){
+                console.log(ctx.LESS()?.text);
+                addNullaryInstruction(OpCodes.LESS);
+            }
+            else if (ctx.LESS_OR_EQUALS() != undefined){
+                console.log(ctx.LESS_OR_EQUALS()?.text);
+                addNullaryInstruction(OpCodes.LESS_OR_EQUALS);
+            }
+            else if (ctx.GREATER() != undefined){
+                console.log(ctx.GREATER()?.text);
+                addNullaryInstruction(OpCodes.GREATER);
+            }
+            else if (ctx.GREATER_OR_EQUALS() != undefined){
+                console.log(ctx.GREATER_OR_EQUALS()?.text);
+                addNullaryInstruction(OpCodes.GREATER_OR_EQUALS);
+            }
         }
     };
 
@@ -340,6 +373,10 @@ function microcode(instr: Instruction){
             A = OS.pop();
             B = OS.pop();
             OS.push(B - A);
+            break;
+        case OpCodes.NEGATIVE:
+            A = OS.pop();
+            OS.push(-A);
             break;
         case OpCodes.MULT:
             A = OS.pop();

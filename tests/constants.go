@@ -14,7 +14,9 @@ func main() {
     reassignTest2 = reassignTest2 + 1 //11
     
     var mod = (300 + 21) % 123 //75 
+    var booltest bool = (true || false) && !(true && false) //true
     */
 
-    var booltest bool = (true || false) && !(true && false) //true
+    var i bool = !true
+    var j int = -1
 }
