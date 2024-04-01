@@ -118,7 +118,7 @@ class Frame {
 
 let Instrs: Instruction [] = []
 let PC = 0
-let ENV: Frame[] = [new Frame()]
+let ENV: Frame[] = []
 let OS: any[] = []
 let RTS: any[] = []
 
@@ -180,13 +180,23 @@ function addNullaryInstruction(opCode: string) {
   }
   
 //Environment-related stuff
+function pushFrame(){
+    ENV.push(new Frame());
+    //console.log(ENV);
+}
+
+function popFrame(){
+    //console.log(ENV);
+    ENV.pop();
+}
+
 function addMappingToCurrentFrame(identifier: string, value: number | boolean){
-    ENV[0][identifier] = value;
+    ENV[ENV.length-1][identifier] = value;
 }
 
 function lookupIdentifier(identifier: string){
     //console.log("lookup for " + identifier);
-    for(let i = 0; i < ENV.length; i++){
+    for(let i = ENV.length - 1; i >= 0; i--){
         let currentFrame : Frame = ENV[i];
         if (currentFrame[identifier] != undefined) {
             //console.log("FOUND: " + currentFrame[identifier]);
@@ -214,6 +224,16 @@ class GoCompiler implements GoParserListener{
     enterStatement? (ctx: StatementContext): void {
         console.log("Statement: " + ctx.text);
         addNullaryInstruction(OpCodes.POP);
+    }
+
+    enterBlock?: ((ctx: BlockContext) => void) | undefined = (ctx: BlockContext) =>{
+        console.log("Blocked entered");
+        addNullaryInstruction(OpCodes.ENTER_BLOCK);
+    }
+
+    exitBlock?: ((ctx: BlockContext) => void) | undefined = (ctx: BlockContext)=>{
+        console.log("Block exited");
+        addNullaryInstruction(OpCodes.EXIT_BLOCK);
     }
 
     exitVarSpec?: ((ctx: VarSpecContext) => void) | undefined = (ctx:VarSpecContext) =>{
@@ -343,8 +363,9 @@ function run(){
     while(Instrs[PC][0] != OpCodes.DONE){
         const instr = Instrs[PC++]
         microcode(instr);
-        //console.log(instr[0]);
+        console.log(instr);
         //console.log("Operand Stack: ", OS);
+        console.log("Environment: ", ENV);
     }
     console.log("Final Environment: ", ENV);
     console.log("Final Operand Stack: ", OS);
@@ -355,6 +376,12 @@ function microcode(instr: Instruction){
     switch (instr[0]){
         case OpCodes.POP:
             OS.pop();
+            break;
+        case OpCodes.ENTER_BLOCK:
+            pushFrame();
+            break;
+        case OpCodes.EXIT_BLOCK:
+            popFrame();
             break;
         case OpCodes.LDCI:
             OS.push(instr[1]);
