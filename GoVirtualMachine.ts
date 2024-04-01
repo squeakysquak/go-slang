@@ -407,6 +407,36 @@ function microcode(instr: Instruction){
             A = OS.pop();
             OS.push (!A);
             break;
+        case OpCodes.EQUALS:
+            A = OS.pop();
+            B = OS.pop();
+            OS.push(B==A);
+            break;
+        case OpCodes.NOT_EQUALS:
+            A = OS.pop();
+            B = OS.pop();
+            OS.push(B!=A);
+            break;
+        case OpCodes.LESS:
+            A = OS.pop();
+            B = OS.pop();
+            OS.push(B<A);
+            break;
+        case OpCodes.LESS_OR_EQUALS:
+            A = OS.pop();
+            B = OS.pop();
+            OS.push(B<=A);
+            break;
+        case OpCodes.GREATER:
+            A = OS.pop();
+            B = OS.pop();
+            OS.push(B>A);
+            break;
+        case OpCodes.GREATER_OR_EQUALS:
+            A = OS.pop();
+            B = OS.pop();
+            OS.push(B>=A);
+            break;
         case OpCodes.ASSIGN:
             A = instr[1] as string;
             B = OS[OS.length-1];
