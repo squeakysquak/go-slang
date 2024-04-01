@@ -251,6 +251,18 @@ class GoCompiler implements GoParserListener{
             console.log(ctx.STAR()?.text);
             addNullaryInstruction(OpCodes.MULT);
         }
+        else if (ctx.MOD() != undefined){
+            console.log(ctx.MOD()?.text);
+            addNullaryInstruction(OpCodes.MOD);
+        }
+        else if (ctx.LOGICAL_OR() != undefined){
+            console.log(ctx.LOGICAL_OR()?.text);
+            addNullaryInstruction(OpCodes.OR);
+        }
+        else if (ctx.LOGICAL_AND() != undefined){
+            console.log(ctx.LOGICAL_AND()?.text);
+            addNullaryInstruction(OpCodes.AND);
+        }
     };
 
     enterOperand?: ((ctx: OperandContext) => void) | undefined = (ctx: OperandContext) => {
@@ -325,6 +337,11 @@ function microcode(instr: Instruction){
             A = OS.pop();
             B = OS.pop();
             OS.push(B / A);
+            break;
+        case OpCodes.MOD:
+            A = OS.pop();
+            B = OS.pop();
+            OS.push(B % A);
             break;
         case OpCodes.ASSIGN:
             A = instr[1] as string;
