@@ -263,6 +263,10 @@ class GoCompiler implements GoParserListener{
             console.log(ctx.LOGICAL_AND()?.text);
             addNullaryInstruction(OpCodes.AND);
         }
+        else if (ctx.EXCLAMATION() != undefined){
+            console.log(ctx.EXCLAMATION()?.text);
+            addNullaryInstruction(OpCodes.NOT);
+        }
     };
 
     enterOperand?: ((ctx: OperandContext) => void) | undefined = (ctx: OperandContext) => {
@@ -271,7 +275,6 @@ class GoCompiler implements GoParserListener{
 
             if (literal?.basicLit() != undefined){
                 const basicLiteral = literal.basicLit()
-
                 if(basicLiteral?.integer() != undefined){
                     console.log("operand (int): " + ctx.text)
                     addUnaryInstruction(OpCodes.LDCI, parseInt(ctx.text as string));
@@ -279,8 +282,13 @@ class GoCompiler implements GoParserListener{
             }
         }else if (ctx.operandName() != undefined){
             const name = ctx.operandName();
-            console.log("operand (name): "+ ctx.text);
-            addUnaryInstruction(OpCodes.LDC, ctx.text);
+            if (name?.text == "true" || name?.text == "false"){
+                console.log("operand (bool): " + ctx.text)
+                addUnaryInstruction(OpCodes.LDCB, ctx.text);
+            }else{ //variable/function name
+                console.log("operand (name): "+ ctx.text);
+                addUnaryInstruction(OpCodes.LDC, ctx.text);
+            }
         }
     }
 
@@ -294,9 +302,9 @@ const compiler: GoParserListener = new GoCompiler();
 
 ParseTreeWalker.DEFAULT.walk(compiler,tree);
 
-console.log("Compiled instructions: ", Instrs);
-
 addNullaryInstruction(OpCodes.DONE);
+
+console.log("Compiled instructions: ", Instrs);
 
 function run(){
     while(Instrs[PC][0] != OpCodes.DONE){
@@ -316,7 +324,12 @@ function microcode(instr: Instruction){
             OS.pop();
             break;
         case OpCodes.LDCI:
-            OS.push(instr[1])
+            OS.push(instr[1]);
+            break;
+        case OpCodes.LDCB:
+            OS.push(instr[1] == "true" ? true : 
+                instr[1] == "false" ? false : 
+                undefined);
             break;
         case OpCodes.ADD:
             A = OS.pop();
@@ -342,6 +355,20 @@ function microcode(instr: Instruction){
             A = OS.pop();
             B = OS.pop();
             OS.push(B % A);
+            break;
+        case OpCodes.OR:
+            A = OS.pop();
+            B = OS.pop();
+            OS.push (B || A);
+            break;
+        case OpCodes.AND:
+            A = OS.pop();
+            B = OS.pop();
+            OS.push (B && A);
+            break;
+        case OpCodes.NOT:
+            A = OS.pop();
+            OS.push (!A);
             break;
         case OpCodes.ASSIGN:
             A = instr[1] as string;

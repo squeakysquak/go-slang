@@ -9,6 +9,7 @@ export enum OpCodes {
   MOD = "MOD",
   OR = "OR",
   AND = "AND",
+  NOT = "NOT",
   LDCI = "LDCI",
   LDCB = "LDCB",
   LDC = "LDC",
