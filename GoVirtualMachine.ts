@@ -116,11 +116,17 @@ class Frame {
     [Key: string]: number | boolean | Closure;
 }
 
+export type BlockFrame = [
+    string, //tag
+    number, //PC
+    Frame[], //Env
+]    
+
 let Instrs: Instruction [] = []
 let PC = 0
 let ENV: Frame[] = [new Frame()]
 let OS: any[] = []
-let RTS: any[] = []
+let RTS: BlockFrame[] = []
 
 /**
  * when executing concurrent code
@@ -216,6 +222,7 @@ function lookupIdentifier(identifier: string){
     return undefined;
 }
 
+
 // Create the lexer and parser
 let input = fs.readFileSync('tests/constants.go','utf8');
 let inputStream = new ANTLRInputStream(input); //test input, need to somehow link this to use SourceAcademy instead
@@ -272,6 +279,11 @@ class GoCompiler implements GoParserListener{
             }
         }
     };
+
+    exitReturnStmt?: ((ctx: ReturnStmtContext) => void) | undefined = (ctx: ReturnStmtContext) => {
+        console.log("Exited return stmt: " + ctx.text);
+        addNullaryInstruction(OpCodes.RESET);
+    }
 
     enterBlock?: ((ctx: BlockContext) => void) | undefined = (ctx: BlockContext) =>{
         console.log("Blocked entered");
@@ -392,6 +404,11 @@ class GoCompiler implements GoParserListener{
         }
     }
 
+    exitArguments?: ((ctx: ArgumentsContext) => void) | undefined = (ctx:ArgumentsContext) => {
+        //console.log("Exited Arguments: "+ ctx.text);
+        addUnaryInstruction(OpCodes.CALL, ctx.expressionList()?.expression().length as number)
+    }
+
     exitAssignment?: ((ctx: AssignmentContext) => void) | undefined = (ctx: AssignmentContext) => {
         console.log("assignment: " + ctx.expressionList(0).text);
         addUnaryInstruction(OpCodes.REASSIGN, ctx.expressionList(0).text);
@@ -414,9 +431,11 @@ function run(){
         microcode(instr);
         console.log("Operand Stack: ", OS);
         console.log("Environment: ", ENV);
+        console.log("RTS:",RTS);
     }
     //console.log("Final Environment: ", ENV);
     console.log("Final Operand Stack: ", OS);
+    console.log("Final RTS:",RTS);
     console.log("Evaluated: " + OS.pop());
 }
 
@@ -543,6 +562,30 @@ function microcode(instr: Instruction){
             OS.push(lookupIdentifier(A));
             //console.log("ENV: ", ENV);
             //console.log("OS: ", OS);
+            break;
+        case OpCodes.CALL:
+            A = [] //args
+            for (let i = instr[1] as number - 1; i >= 0; i--){
+                A[i] = OS.pop()
+            }
+            B = OS.pop() //Closure with param names
+            C = new Frame() //Frame to extend environment with
+
+            for (let i = 0; i < B[1].length; i++){
+                C[B[1][i]] = A[i]
+            }
+
+            RTS.push(["CALL_FRAME", PC, ENV])
+            extend(C); //Extend environment
+            PC = B[2];
+            break;
+        case OpCodes.RESET:
+            A = RTS.pop();
+            while (A[0] != "CALL_FRAME"){
+                A = RTS.pop();
+            }
+            PC = A[1];
+            ENV = A[2];
             break;
     }
 }

@@ -22,6 +22,8 @@ export enum OpCodes {
   LDCB = "LDCB",
   LDC = "LDC",
   LDF = "LDF",
+  CALL = "CALL",
+  RESET = "RESET",
   ENTER_BLOCK = "ENTER_BLOCK",
   EXIT_BLOCK = "EXIT_BLOCK",
   DONE = "DONE"
