@@ -5,10 +5,11 @@ let free = -1;
 const N_NODES = 1024;
 
 const WORD_SIZE = 8;
-const NODE_SIZE = 8; // [tag(1w) {type-tag(1b), gc-mark(1b), children-are-pointers(1b), unused(1b), n-children(4b)}, children(6w), cont(1w)]
+const NODE_SIZE = 8; // [tag(1w) {type-tag(1b), gc-mark(1b), children-are-pointers(1b), is-free(1b), n-children(4b)}, children(6w), cont(1w)]
 const TYPE_OFFSET = 0;
 const MARK_OFFSET = 1;
 const CHILDREN_ARE_POINTERS_OFFSET = 2;
+const FREE_OFFSET = 3;
 const CHILDREN_OFFSET = 4;
 const CONT_OFFSET = 7;
 
@@ -41,6 +42,12 @@ export function heap_tag_get_children_are_pointers(addr: number) {
 export function heap_tag_set_children_are_pointers(addr: number, children_are_pointers: boolean) {
     return HEAP.setInt8(addr * WORD_SIZE + CHILDREN_ARE_POINTERS_OFFSET, children_are_pointers ? 1 : 0);
 }
+export function heap_tag_get_free(addr: number) {
+    return HEAP.getInt8(addr * WORD_SIZE + FREE_OFFSET) === 1;
+}
+export function heap_tag_set_free(addr: number, is_free: boolean) {
+    return HEAP.setInt8(addr * WORD_SIZE + FREE_OFFSET, is_free ? 1 : 0);
+}
 export function heap_tag_get_n_children(addr: number) {
     return HEAP.getInt32(addr * WORD_SIZE + CHILDREN_OFFSET);
 }
@@ -64,31 +71,28 @@ export function heap_get_child(addr: number, child_index: number) {
     if (child_index >= n_children || child_index < 0) {
         throw Error("heap_get_child: invalid child index");
     }
-    child_index += 1;
-    const num_follows = Math.floor(child_index / 7);
+    const num_follows = Math.floor(child_index / 6);
     for (let i = 0; i < num_follows; ++i) {
         addr = heap_node_get_cont(addr);
     }
-    return heap_get(addr + (child_index % 7));
+    return heap_get(addr + 1 + (child_index % 6));
 }
 export function heap_set_child(addr: number, child_index: number, val: number) {
     const n_children = heap_tag_get_n_children(addr);
     if (child_index >= n_children || child_index < 0) {
         throw Error("heap_set_child: invalid child index");
     }
-    child_index += 1;
-    const num_follows = Math.floor(child_index / 7);
+    const num_follows = Math.floor(child_index / 6);
     for (let i = 0; i < num_follows; ++i) {
         addr = heap_node_get_cont(addr);
     }
-    return heap_set(addr + (child_index % 7), val);
+    return heap_set(addr + 1 + (child_index % 6), val);
 }
 
 ///// GC
 
 let roots: Set<number> = new Set(); // GC roots - start from these to mark reachable nodes
-let temp_nodes: number[] = []; // nodes to be considered marked - may not be safe to physically set mark on these addresses as some may not have a tag word
-let temp_node_set: Set<number> = new Set(); // will be populated from temp_nodes during GC operation
+let temp_nodes: number[] = []; // nodes to be considered marked
 
 export function heap_add_root(addr: number) {
     roots.add(addr);
@@ -107,27 +111,74 @@ export function temp_node_unstash() {
     return temp_nodes.pop() as number; // this is safe as temp_nodes is not empty
 }
 
-export function run_gc() { // TODO
-    throw Error("run_gc: not implemented");
+function mark(addr: number) {
+    if (addr === -1) return;
+    if (heap_tag_get_mark(addr)) return;
+    heap_tag_set_mark(addr, true);
+    if (!heap_tag_get_children_are_pointers(addr)) return;
+    const n_children = heap_tag_get_n_children(addr);
+    const n_nodes = Math.ceil(n_children / 6);
+    for (let i = 0; i < n_nodes; ++i) {
+        for (let j = 0; j < 6; ++j) {
+            const child = heap_get(addr + 1 + j);
+            mark(child);
+        }
+        heap_tag_set_mark(addr, true);
+        addr = heap_node_get_cont(addr);
+    }
+}
+function sweep() {
+    for (let i = 0; i < N_NODES; ++i) {
+        const addr = i * NODE_SIZE * WORD_SIZE;
+        if (heap_tag_get_mark(addr)) {
+            heap_tag_set_mark(addr, false);
+            continue;
+        }
+        if (!heap_tag_get_free(addr)) {
+            heap_rawfree(addr);
+        }
+    }
+}
+
+export function run_gc() {
+    for (let i = 0; i < temp_nodes.length; ++i) {
+        heap_tag_set_mark(temp_nodes[i], true);
+    }
+    const it = roots.entries();
+    for (const i of it) {
+        mark(i[0]);
+    }
+    sweep();
 }
 
 ///// alloc/free routines
 
+export function heap_rawalloc() {
+    if (free === -1) {
+        run_gc();
+    }
+    if (free === -1) {
+        throw Error("heap_alloc: out of memory");
+    }
+    const addr = free;
+    heap_tag_set_free(addr, false);
+    free = heap_node_get_cont(addr);
+    return addr;
+}
+export function heap_rawfree(addr: number) {
+    heap_node_set_cont(addr, free);
+    heap_tag_set_free(addr, true);
+    free = addr;
+}
+
 export function heap_alloc(type: number, children_are_pointers: boolean, n_children: number) {
-    const n_nodes = Math.floor(n_children / 7) + 1;
+    const n_nodes = Math.max(1, Math.ceil(n_children / 6));
     for (let i = 0; i < n_nodes; ++i) {
-        if (free === -1) {
-            run_gc();
-        }
-        if (free === -1) {
-            throw Error("heap_alloc: out of memory");
-        }
-        temp_node_stash(free);
-        free = heap_get(free);
+        temp_node_stash(heap_rawalloc());
     }
     let addr = -1;
     for (let i = 0; i < n_nodes; ++i) {
-        let temp = temp_node_unstash();
+        const temp = temp_node_unstash();
         heap_node_set_cont(temp, addr);
         addr = temp;
     }
@@ -139,26 +190,28 @@ export function heap_alloc(type: number, children_are_pointers: boolean, n_child
 }
 export function heap_free(addr: number) {
     const n_children = heap_tag_get_n_children(addr);
-    const n_nodes = Math.floor(n_children / 7) + 1;
+    const n_nodes = Math.max(1, Math.ceil(n_children / 6));
     for (let i = 0; i < n_nodes; ++i) {
-        heap_set(addr, free);
-        free = addr;
+        const next = heap_node_get_cont(addr);
+        heap_rawfree(addr);
+        addr = next;
     }
 }
 
 ///// Initialisation
 
-function heap_initialise(n_nodes: number) {
-    const data = new ArrayBuffer(n_nodes * NODE_SIZE * WORD_SIZE);
+function heap_initialise() {
+    const data = new ArrayBuffer(N_NODES * NODE_SIZE * WORD_SIZE);
     const view = new DataView(data);
     HEAP = view;
     free = -1;
-    for (let i = 0; i < n_nodes; ++i) {
+    for (let i = 0; i < N_NODES; ++i) {
         const addr = i * NODE_SIZE * WORD_SIZE;
-        heap_set(addr, free);
+        heap_node_set_cont(addr, free);
+        heap_tag_set_free(addr, true);
         free = addr;
     }
     heap_initialised = true;
 }
 
-heap_initialise(N_NODES);
+heap_initialise();
