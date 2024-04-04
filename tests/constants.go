@@ -3,7 +3,7 @@ package main
 import "fmt"
 
 func main() {
-    /*    
+    /*    */
     var reassignTest int = 10
     reassignTest = 3 * (2 + 2) / 2 - 5 // ans: 1
     
@@ -21,7 +21,7 @@ func main() {
     var relTest1 = 1 + 2 < 2 //false
     var relTest2 = 5 >= 5-22 //true
     var relTest3 = 1 + 2 != 3 || 5 > 10 - 5 //false
-    */
+    
 
     var x = 1
     {

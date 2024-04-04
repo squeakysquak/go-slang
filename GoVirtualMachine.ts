@@ -367,7 +367,7 @@ function run(){
         //console.log("Operand Stack: ", OS);
         console.log("Environment: ", ENV);
     }
-    console.log("Final Environment: ", ENV);
+    //console.log("Final Environment: ", ENV);
     console.log("Final Operand Stack: ", OS);
     console.log("Evaluated: " + OS.pop());
 }
