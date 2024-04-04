@@ -86,8 +86,16 @@ export function heap_set_child(addr: number, child_index: number, val: number) {
 
 ///// GC
 
+let roots: Set<number> = new Set(); // GC roots - start from these to mark reachable nodes
 let temp_nodes: number[] = []; // nodes to be considered marked - may not be safe to physically set mark on these addresses as some may not have a tag word
-let temp_node_map: { [addr: number]: boolean }; // will be populated from temp_nodes during gc operation
+let temp_node_set: Set<number> = new Set(); // will be populated from temp_nodes during GC operation
+
+export function add_root(addr: number) {
+    roots.add(addr);
+}
+export function remove_root(addr: number) {
+    return roots.delete(addr);
+}
 
 export function temp_node_stash(addr: number) {
     return temp_nodes.push(addr); // allocation of any given object should have an upper bound on the number of stashed allocations, and can be treated as constant memory
