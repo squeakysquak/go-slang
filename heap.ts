@@ -90,10 +90,10 @@ let roots: Set<number> = new Set(); // GC roots - start from these to mark reach
 let temp_nodes: number[] = []; // nodes to be considered marked - may not be safe to physically set mark on these addresses as some may not have a tag word
 let temp_node_set: Set<number> = new Set(); // will be populated from temp_nodes during GC operation
 
-export function add_root(addr: number) {
+export function heap_add_root(addr: number) {
     roots.add(addr);
 }
-export function remove_root(addr: number) {
+export function heap_remove_root(addr: number) {
     return roots.delete(addr);
 }
 
