@@ -1,3 +1,27 @@
+/**
+ * heap.ts
+ * 
+ * The VM heap is organised into nodes and words.
+ * Each word is 8 bytes, and each node is 8 words.
+ * 
+ * The first word of each node is a tag, identifying the content of the node.
+ * The first byte of the tag identifies the type of the node.
+ * The second byte is for use with the mark-sweep GC.
+ * The third byte indicates whether the children of this node should be treated as pointers, or raw data.
+ * The fourth byte indicates whether the node is currently free.
+ * The next four bytes hold a 32-bit int indicating the number of children this node has.
+ * 
+ * The next 6 words of each node are its children.
+ * Each is either a pointer to another memory location in the heap, or raw data, depending on the value of the children-are-pointers flag.
+ * 
+ * The last word is a pointer to another node. This is used when the number of children exceeds 6.
+ * The node pointed to may not have a proper tag; only the mark-sweep flag and the free flag are properly supported.
+ * If the number of children is large, this node may point to a further node in a linked-list fashion.
+ * 
+ * The heap should ideally be interacted with via the functions heap_alloc/free, heap_get/set_child, and heap_tag_get_*.
+ * Care must be taken to maintain the heap structure if not using these functions.
+ */
+
 let HEAP: DataView;
 let heap_initialised = false;
 let free = -1;
@@ -166,6 +190,7 @@ export function heap_rawalloc() {
     return addr;
 }
 export function heap_rawfree(addr: number) {
+    if (heap_tag_get_free(addr)) return; // safety: don't double free
     heap_node_set_cont(addr, free);
     heap_tag_set_free(addr, true);
     free = addr;
