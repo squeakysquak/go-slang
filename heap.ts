@@ -14,10 +14,10 @@ const CONT_OFFSET = 7;
 
 ///// Raw word get/set
 
-function heap_get(addr: number) {
+export function heap_get(addr: number) {
     return HEAP.getFloat64(addr);
 }
-function heap_set(addr: number, val: number) {
+export function heap_set(addr: number, val: number) {
     return HEAP.setFloat64(addr, val);
 }
 
@@ -26,34 +26,34 @@ function heap_set(addr: number, val: number) {
 export function heap_tag_get_type(addr: number) {
     return HEAP.getInt8(addr * WORD_SIZE + TYPE_OFFSET);
 }
-function heap_tag_set_type(addr: number, type: number) {
+export function heap_tag_set_type(addr: number, type: number) {
     return HEAP.setInt8(addr * WORD_SIZE + TYPE_OFFSET, type);
 }
-function heap_tag_get_mark(addr: number) {
+export function heap_tag_get_mark(addr: number) {
     return HEAP.getInt8(addr * WORD_SIZE + MARK_OFFSET) === 1;
 }
-function heap_tag_set_mark(addr: number, mark: boolean) {
+export function heap_tag_set_mark(addr: number, mark: boolean) {
     return HEAP.setInt8(addr * WORD_SIZE + MARK_OFFSET, mark ? 1 : 0);
 }
-function heap_tag_get_children_are_pointers(addr: number) {
+export function heap_tag_get_children_are_pointers(addr: number) {
     return HEAP.getInt8(addr * WORD_SIZE + CHILDREN_ARE_POINTERS_OFFSET) === 1;
 }
-function heap_tag_set_children_are_pointers(addr: number, children_are_pointers: boolean) {
+export function heap_tag_set_children_are_pointers(addr: number, children_are_pointers: boolean) {
     return HEAP.setInt8(addr * WORD_SIZE + CHILDREN_ARE_POINTERS_OFFSET, children_are_pointers ? 1 : 0);
 }
 export function heap_tag_get_n_children(addr: number) {
     return HEAP.getInt32(addr * WORD_SIZE + CHILDREN_OFFSET);
 }
-function heap_tag_set_n_children(addr: number, n_children: number) {
+export function heap_tag_set_n_children(addr: number, n_children: number) {
     return HEAP.setInt32(addr * WORD_SIZE + CHILDREN_OFFSET, n_children);
 }
 
 ///// Node cont get/set
 
-function heap_node_get_cont(addr: number) {
+export function heap_node_get_cont(addr: number) {
     return heap_get(addr + CONT_OFFSET);
 }
-function heap_node_set_cont(addr: number, cont_addr: number) {
+export function heap_node_set_cont(addr: number, cont_addr: number) {
     return heap_set(addr + CONT_OFFSET, cont_addr);
 }
 
@@ -107,7 +107,7 @@ export function temp_node_unstash() {
     return temp_nodes.pop() as number; // this is safe as temp_nodes is not empty
 }
 
-function run_gc() { // TODO
+export function run_gc() { // TODO
     throw Error("run_gc: not implemented");
 }
 
