@@ -113,12 +113,12 @@ import * as fs from 'fs';
 import OpCodes from './opcodes'
 
 class Frame {
-    [Key: string]: number | boolean;
+    [Key: string]: number | boolean | Closure;
 }
 
 let Instrs: Instruction [] = []
 let PC = 0
-let ENV: Frame[] = []
+let ENV: Frame[] = [new Frame()]
 let OS: any[] = []
 let RTS: any[] = []
 
@@ -146,11 +146,17 @@ export type Address = [
     number, // function index
     number? // instruction index within function; optional
 ]
-export type Argument = number | boolean | string | Offset | Address
+export type Argument = number | boolean | string | Offset | Address | Closure
 export type Instruction = [
     string, // opcode
     Argument?,
     Argument?
+]
+export type Closure = [
+    string, //tag
+    string[], //params
+    number, //PC
+    Frame[] //Environment
 ]
 export type GoVMFunction = [
     number, // stack size
@@ -185,12 +191,16 @@ function pushFrame(){
     //console.log(ENV);
 }
 
+function extend(newFrame: Frame){
+    ENV.push(newFrame);
+}
+
 function popFrame(){
     //console.log(ENV);
     ENV.pop();
 }
 
-function addMappingToCurrentFrame(identifier: string, value: number | boolean){
+function addMappingToCurrentFrame(identifier: string, value: number | boolean | Closure){
     ENV[ENV.length-1][identifier] = value;
 }
 
@@ -225,6 +235,43 @@ class GoCompiler implements GoParserListener{
         console.log("Statement: " + ctx.text);
         addNullaryInstruction(OpCodes.POP);
     }
+
+    enterFunctionDecl?: ((ctx: FunctionDeclContext) => void) | undefined = (ctx: FunctionDeclContext) =>{
+        let funcName = ctx.IDENTIFIER().text 
+        if (funcName != "main"){
+            console.log("Function declaration: " + funcName);
+            const paramsCtx = ctx.signature().parameters().parameterDecl();
+            let params: any[] = []
+
+            for (let i = 0; i < paramsCtx.length; i++){
+                params.push(paramsCtx[i].identifierList()?.text);
+            }
+
+            let closure : Closure = [funcName, params, Instrs.length + 2, ENV]; //Skip the GOTO instr
+            addUnaryInstruction(OpCodes.LDF, closure);
+        }
+    }
+
+    exitFunctionDecl?: ((ctx: FunctionDeclContext) => void) | undefined = (ctx: FunctionDeclContext) =>{
+        let funcName = ctx.IDENTIFIER().text 
+        if (funcName != "main"){
+            for (let i = 0; Instrs.length; i++){
+                if (Instrs[i][0] == "LDF" && Instrs[i][1] != undefined){
+                    let closure : Closure = Instrs[i][1] as Closure
+                    if (closure[0] == funcName){
+                         //Replace the ENTER_BLOCK instr with GOTO, CALL instr already extends env.
+                        const ins: Instruction = [OpCodes.GOTO, Instrs.length]
+                        Instrs[i + 1] = ins
+                        
+                        //Assign closure to funcName
+                        addUnaryInstruction(OpCodes.ASSIGN, funcName);
+
+                        break
+                    }
+                }
+            }
+        }
+    };
 
     enterBlock?: ((ctx: BlockContext) => void) | undefined = (ctx: BlockContext) =>{
         console.log("Blocked entered");
@@ -362,9 +409,10 @@ console.log("Compiled instructions: ", Instrs);
 function run(){
     while(Instrs[PC][0] != OpCodes.DONE){
         const instr = Instrs[PC++]
-        microcode(instr);
         console.log(instr);
-        //console.log("Operand Stack: ", OS);
+
+        microcode(instr);
+        console.log("Operand Stack: ", OS);
         console.log("Environment: ", ENV);
     }
     //console.log("Final Environment: ", ENV);
@@ -377,12 +425,16 @@ function microcode(instr: Instruction){
         case OpCodes.POP:
             OS.pop();
             break;
+        case OpCodes.GOTO:
+            PC = (instr[1] as number)
+            break;
         case OpCodes.ENTER_BLOCK:
             pushFrame();
             break;
         case OpCodes.EXIT_BLOCK:
             popFrame();
             break;
+        case OpCodes.LDF:
         case OpCodes.LDCI:
             OS.push(instr[1]);
             break;
@@ -390,6 +442,8 @@ function microcode(instr: Instruction){
             OS.push(instr[1] == "true" ? true : 
                 instr[1] == "false" ? false : 
                 undefined);
+            break;
+        case OpCodes.LDF:
             break;
         case OpCodes.ADD:
             A = OS.pop();

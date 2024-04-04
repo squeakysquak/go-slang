@@ -2,8 +2,12 @@ package main
 
 import "fmt"
 
+func add(x int, y int) int {
+    return x + y
+}
+
 func main() {
-    /*    */
+    /*    
     var reassignTest int = 10
     reassignTest = 3 * (2 + 2) / 2 - 5 // ans: 1
     
@@ -28,4 +32,9 @@ func main() {
         var x = 10
     }
     x = x + 1
+    */
+
+    add( 3, 5)
+
+
 }
