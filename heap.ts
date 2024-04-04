@@ -88,6 +88,17 @@ export function heap_set_child(addr: number, child_index: number, val: number) {
 
 let temp_nodes: number[] = []; // nodes to be considered marked - may not be safe to physically set mark on these addresses as some may not have a tag word
 let temp_node_map: { [addr: number]: boolean }; // will be populated from temp_nodes during gc operation
+
+export function temp_node_stash(addr: number) {
+    return temp_nodes.push(addr); // allocation of any given object should have an upper bound on the number of stashed allocations, and can be treated as constant memory
+}
+export function temp_node_unstash() {
+    if (temp_nodes.length === 0) {
+        throw Error("temp_node_unstash: internal error - temp_nodes is invalid");
+    }
+    return temp_nodes.pop() as number; // this is safe as temp_nodes is not empty
+}
+
 function run_gc() { // TODO
     throw Error("run_gc: not implemented");
 }
@@ -103,15 +114,12 @@ export function heap_alloc(type: number, children_are_pointers: boolean, n_child
         if (free === -1) {
             throw Error("heap_alloc: out of memory");
         }
-        temp_nodes.push(free);
+        temp_node_stash(free);
         free = heap_get(free);
     }
     let addr = -1;
     for (let i = 0; i < n_nodes; ++i) {
-        if (temp_nodes.length === 0) {
-            throw Error("heap_alloc: internal error - temp_nodes is invalid");
-        }
-        let temp = temp_nodes.pop() as number; // this is safe as temp_nodes is not empty
+        let temp = temp_node_unstash();
         heap_node_set_cont(temp, addr);
         addr = temp;
     }
