@@ -125,7 +125,7 @@ export type BlockFrame = [
 
 let Instrs: Instruction[] = []
 let PC = 0
-let ENV: Frame[] = [new Frame()]
+export let ENV: Frame[] = [new Frame()]
 let OS: any[] = []
 let RTS: BlockFrame[] = []
 

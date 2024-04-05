@@ -1,15 +1,17 @@
 import { CharStreams, CommonTokenStream } from "antlr4ts";
 import { ArgumentsContext, AssignmentContext, BlockContext, ExpressionContext, FunctionDeclContext, GoParser, OperandContext, PackageClauseContext, ReturnStmtContext, StatementContext, VarSpecContext } from "./GoParser";
 import { GoParserListener } from "./GoParserListener";
-import { Argument, Closure, Frame, Instruction } from "./GoVirtualMachine";
+import { Argument, Closure, ENV, Instruction } from "./GoVirtualMachine";
 import OpCodes from "./opcodes";
 import { GoLexer } from "./GoLexer";
 import { ParseTreeWalker } from "antlr4ts/tree/ParseTreeWalker";
 
-let ENV: Frame[] = [new Frame()]
-
 class GoCompiler implements GoParserListener {
     Instrs: Instruction[];
+
+    constructor() {
+        this.Instrs = [];
+    }
 
     //Instruction adding 
     addNullaryInstruction(opCode: string) {
