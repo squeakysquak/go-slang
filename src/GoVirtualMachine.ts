@@ -1,6 +1,6 @@
 import { ANTLRInputStream, CommonTokenStream } from 'antlr4ts';
-import {GoLexer} from './GoLexer';
-import {GoParser} from './GoParser';
+import { GoLexer } from './GoLexer';
+import { GoParser } from './GoParser';
 import { GoParserListener } from './GoParserListener';
 import { ParseTreeWalker } from 'antlr4ts/tree/ParseTreeWalker'
 
@@ -120,9 +120,9 @@ export type BlockFrame = [
     string, //tag
     number, //PC
     Frame[], //Env
-]    
+]
 
-let Instrs: Instruction [] = []
+let Instrs: Instruction[] = []
 let PC = 0
 let ENV: Frame[] = [new Frame()]
 let OS: any[] = []
@@ -179,41 +179,41 @@ export type Program = [
 function addNullaryInstruction(opCode: string) {
     const ins: Instruction = [opCode]
     Instrs.push(ins)
-  }
-  
-  function addUnaryInstruction(opCode: string, arg1: Argument) {
+}
+
+function addUnaryInstruction(opCode: string, arg1: Argument) {
     const ins: Instruction = [opCode, arg1]
     Instrs.push(ins)
-  }
-  
-  function addBinaryInstruction(opCode: string, arg1: Argument, arg2: Argument) {
+}
+
+function addBinaryInstruction(opCode: string, arg1: Argument, arg2: Argument) {
     const ins: Instruction = [opCode, arg1, arg2]
     Instrs.push(ins)
-  }
-  
+}
+
 //Environment-related stuff
-function pushFrame(){
+function pushFrame() {
     ENV.push(new Frame());
     //console.log(ENV);
 }
 
-function extend(newFrame: Frame){
+function extend(newFrame: Frame) {
     ENV.push(newFrame);
 }
 
-function popFrame(){
+function popFrame() {
     //console.log(ENV);
     ENV.pop();
 }
 
-function addMappingToCurrentFrame(identifier: string, value: number | boolean | Closure){
-    ENV[ENV.length-1][identifier] = value;
+function addMappingToCurrentFrame(identifier: string, value: number | boolean | Closure) {
+    ENV[ENV.length - 1][identifier] = value;
 }
 
-function lookupIdentifier(identifier: string){
+function lookupIdentifier(identifier: string) {
     //console.log("lookup for " + identifier);
-    for(let i = ENV.length - 1; i >= 0; i--){
-        let currentFrame : Frame = ENV[i];
+    for (let i = ENV.length - 1; i >= 0; i--) {
+        let currentFrame: Frame = ENV[i];
         if (currentFrame[identifier] != undefined) {
             //console.log("FOUND: " + currentFrame[identifier]);
             return currentFrame[identifier];
@@ -224,7 +224,7 @@ function lookupIdentifier(identifier: string){
 
 
 // Create the lexer and parser
-let input = fs.readFileSync('tests/constants.go','utf8');
+let input = fs.readFileSync('gotests/constants.go', 'utf8');
 let inputStream = new ANTLRInputStream(input); //test input, need to somehow link this to use SourceAcademy instead
 let lexer = new GoLexer(inputStream);
 let tokenStream = new CommonTokenStream(lexer);
@@ -233,43 +233,43 @@ let parser = new GoParser(tokenStream);
 let tree = parser.sourceFile(); //Parse tree object
 console.log(tree.toStringTree(parser)); //prints tree, kind of unreadable though
 
-class GoCompiler implements GoParserListener{
-    enterPackageClause? (ctx: PackageClauseContext): void{
+class GoCompiler implements GoParserListener {
+    enterPackageClause?(ctx: PackageClauseContext): void {
         console.log("package clause: " + ctx.text);
     }
 
-    enterStatement? (ctx: StatementContext): void {
+    enterStatement?(ctx: StatementContext): void {
         console.log("Statement: " + ctx.text);
         addNullaryInstruction(OpCodes.POP);
     }
 
-    enterFunctionDecl?: ((ctx: FunctionDeclContext) => void) | undefined = (ctx: FunctionDeclContext) =>{
-        let funcName = ctx.IDENTIFIER().text 
-        if (funcName != "main"){
+    enterFunctionDecl?: ((ctx: FunctionDeclContext) => void) | undefined = (ctx: FunctionDeclContext) => {
+        let funcName = ctx.IDENTIFIER().text
+        if (funcName != "main") {
             console.log("Function declaration: " + funcName);
             const paramsCtx = ctx.signature().parameters().parameterDecl();
             let params: any[] = []
 
-            for (let i = 0; i < paramsCtx.length; i++){
+            for (let i = 0; i < paramsCtx.length; i++) {
                 params.push(paramsCtx[i].identifierList()?.text);
             }
 
-            let closure : Closure = [funcName, params, Instrs.length + 2, ENV]; //Skip the GOTO instr
+            let closure: Closure = [funcName, params, Instrs.length + 2, ENV]; //Skip the GOTO instr
             addUnaryInstruction(OpCodes.LDF, closure);
         }
     }
 
-    exitFunctionDecl?: ((ctx: FunctionDeclContext) => void) | undefined = (ctx: FunctionDeclContext) =>{
-        let funcName = ctx.IDENTIFIER().text 
-        if (funcName != "main"){
-            for (let i = 0; Instrs.length; i++){
-                if (Instrs[i][0] == "LDF" && Instrs[i][1] != undefined){
-                    let closure : Closure = Instrs[i][1] as Closure
-                    if (closure[0] == funcName){
-                         //Replace the ENTER_BLOCK instr with GOTO, CALL instr already extends env.
+    exitFunctionDecl?: ((ctx: FunctionDeclContext) => void) | undefined = (ctx: FunctionDeclContext) => {
+        let funcName = ctx.IDENTIFIER().text
+        if (funcName != "main") {
+            for (let i = 0; Instrs.length; i++) {
+                if (Instrs[i][0] == "LDF" && Instrs[i][1] != undefined) {
+                    let closure: Closure = Instrs[i][1] as Closure
+                    if (closure[0] == funcName) {
+                        //Replace the ENTER_BLOCK instr with GOTO, CALL instr already extends env.
                         const ins: Instruction = [OpCodes.GOTO, Instrs.length]
                         Instrs[i + 1] = ins
-                        
+
                         //Assign closure to funcName
                         addUnaryInstruction(OpCodes.ASSIGN, funcName);
 
@@ -285,22 +285,22 @@ class GoCompiler implements GoParserListener{
         addNullaryInstruction(OpCodes.RESET);
     }
 
-    enterBlock?: ((ctx: BlockContext) => void) | undefined = (ctx: BlockContext) =>{
+    enterBlock?: ((ctx: BlockContext) => void) | undefined = (ctx: BlockContext) => {
         console.log("Blocked entered");
         addNullaryInstruction(OpCodes.ENTER_BLOCK);
     }
 
-    exitBlock?: ((ctx: BlockContext) => void) | undefined = (ctx: BlockContext)=>{
+    exitBlock?: ((ctx: BlockContext) => void) | undefined = (ctx: BlockContext) => {
         console.log("Block exited");
         addNullaryInstruction(OpCodes.EXIT_BLOCK);
     }
 
-    exitVarSpec?: ((ctx: VarSpecContext) => void) | undefined = (ctx:VarSpecContext) =>{
+    exitVarSpec?: ((ctx: VarSpecContext) => void) | undefined = (ctx: VarSpecContext) => {
         let identifiers = ctx.identifierList().IDENTIFIER();
         console.log("var spec: " + ctx.text);
-        for(let i = identifiers.length - 1 ; i >= 0; i--){
+        for (let i = identifiers.length - 1; i >= 0; i--) {
             //console.log(identifiers[i].text);
-            if (i < identifiers.length - 1){
+            if (i < identifiers.length - 1) {
                 addNullaryInstruction(OpCodes.POP);
             }
             addUnaryInstruction(OpCodes.ASSIGN, identifiers[i].text);
@@ -312,69 +312,69 @@ class GoCompiler implements GoParserListener{
         //console.log("args: " + ctx.text);
     };
 
-    exitExpression?: ((ctx: ExpressionContext) => void) | undefined =  (ctx: ExpressionContext) => {
-        if (ctx._unary_op != undefined){
+    exitExpression?: ((ctx: ExpressionContext) => void) | undefined = (ctx: ExpressionContext) => {
+        if (ctx._unary_op != undefined) {
 
             console.log("unary op:", ctx.text)
-            if (ctx.MINUS() != undefined){
+            if (ctx.MINUS() != undefined) {
                 console.log(ctx.MINUS()?.text);
                 addNullaryInstruction(OpCodes.NEGATIVE);
             }
-            else if (ctx.EXCLAMATION() != undefined){
+            else if (ctx.EXCLAMATION() != undefined) {
                 console.log(ctx.EXCLAMATION()?.text);
                 addNullaryInstruction(OpCodes.NOT);
             }
-        }else{ //Binary operations
+        } else { //Binary operations
 
-            if (ctx.PLUS() != undefined){
+            if (ctx.PLUS() != undefined) {
                 console.log(ctx.PLUS()?.text);
                 addNullaryInstruction(OpCodes.ADD);
             }
-            else if (ctx.MINUS() != undefined){
+            else if (ctx.MINUS() != undefined) {
                 console.log(ctx.MINUS()?.text);
                 addNullaryInstruction(OpCodes.MINUS);
             }
-            else if (ctx.DIV() != undefined){
+            else if (ctx.DIV() != undefined) {
                 console.log(ctx.DIV()?.text);
                 addNullaryInstruction(OpCodes.DIV);
             }
-            else if (ctx.STAR() != undefined){
+            else if (ctx.STAR() != undefined) {
                 console.log(ctx.STAR()?.text);
                 addNullaryInstruction(OpCodes.MULT);
             }
-            else if (ctx.MOD() != undefined){
+            else if (ctx.MOD() != undefined) {
                 console.log(ctx.MOD()?.text);
                 addNullaryInstruction(OpCodes.MOD);
             }
-            else if (ctx.LOGICAL_OR() != undefined){
+            else if (ctx.LOGICAL_OR() != undefined) {
                 console.log(ctx.LOGICAL_OR()?.text);
                 addNullaryInstruction(OpCodes.OR);
             }
-            else if (ctx.LOGICAL_AND() != undefined){
+            else if (ctx.LOGICAL_AND() != undefined) {
                 console.log(ctx.LOGICAL_AND()?.text);
                 addNullaryInstruction(OpCodes.AND);
             }
-            else if (ctx.EQUALS() != undefined){
+            else if (ctx.EQUALS() != undefined) {
                 console.log(ctx.EQUALS()?.text);
                 addNullaryInstruction(OpCodes.EQUALS);
             }
-            else if (ctx.NOT_EQUALS() != undefined){
+            else if (ctx.NOT_EQUALS() != undefined) {
                 console.log(ctx.NOT_EQUALS()?.text);
                 addNullaryInstruction(OpCodes.NOT_EQUALS);
             }
-            else if (ctx.LESS() != undefined){
+            else if (ctx.LESS() != undefined) {
                 console.log(ctx.LESS()?.text);
                 addNullaryInstruction(OpCodes.LESS);
             }
-            else if (ctx.LESS_OR_EQUALS() != undefined){
+            else if (ctx.LESS_OR_EQUALS() != undefined) {
                 console.log(ctx.LESS_OR_EQUALS()?.text);
                 addNullaryInstruction(OpCodes.LESS_OR_EQUALS);
             }
-            else if (ctx.GREATER() != undefined){
+            else if (ctx.GREATER() != undefined) {
                 console.log(ctx.GREATER()?.text);
                 addNullaryInstruction(OpCodes.GREATER);
             }
-            else if (ctx.GREATER_OR_EQUALS() != undefined){
+            else if (ctx.GREATER_OR_EQUALS() != undefined) {
                 console.log(ctx.GREATER_OR_EQUALS()?.text);
                 addNullaryInstruction(OpCodes.GREATER_OR_EQUALS);
             }
@@ -382,29 +382,29 @@ class GoCompiler implements GoParserListener{
     };
 
     enterOperand?: ((ctx: OperandContext) => void) | undefined = (ctx: OperandContext) => {
-        if (ctx.literal() != undefined){
+        if (ctx.literal() != undefined) {
             const literal = ctx.literal(); //LiteralContext
 
-            if (literal?.basicLit() != undefined){
+            if (literal?.basicLit() != undefined) {
                 const basicLiteral = literal.basicLit()
-                if(basicLiteral?.integer() != undefined){
+                if (basicLiteral?.integer() != undefined) {
                     console.log("operand (int): " + ctx.text)
                     addUnaryInstruction(OpCodes.LDCI, parseInt(ctx.text as string));
                 }
             }
-        }else if (ctx.operandName() != undefined){
+        } else if (ctx.operandName() != undefined) {
             const name = ctx.operandName();
-            if (name?.text == "true" || name?.text == "false"){
+            if (name?.text == "true" || name?.text == "false") {
                 console.log("operand (bool): " + ctx.text)
                 addUnaryInstruction(OpCodes.LDCB, ctx.text);
-            }else{ //variable/function name
-                console.log("operand (name): "+ ctx.text);
+            } else { //variable/function name
+                console.log("operand (name): " + ctx.text);
                 addUnaryInstruction(OpCodes.LDC, ctx.text);
             }
         }
     }
 
-    exitArguments?: ((ctx: ArgumentsContext) => void) | undefined = (ctx:ArgumentsContext) => {
+    exitArguments?: ((ctx: ArgumentsContext) => void) | undefined = (ctx: ArgumentsContext) => {
         //console.log("Exited Arguments: "+ ctx.text);
         addUnaryInstruction(OpCodes.CALL, ctx.expressionList()?.expression().length as number)
     }
@@ -417,30 +417,30 @@ class GoCompiler implements GoParserListener{
 
 const compiler: GoParserListener = new GoCompiler();
 
-ParseTreeWalker.DEFAULT.walk(compiler,tree);
+ParseTreeWalker.DEFAULT.walk(compiler, tree);
 
 addNullaryInstruction(OpCodes.DONE);
 
 console.log("Compiled instructions: ", Instrs);
 
-function run(){
-    while(Instrs[PC][0] != OpCodes.DONE){
+function run() {
+    while (Instrs[PC][0] != OpCodes.DONE) {
         const instr = Instrs[PC++]
         console.log(instr);
 
         microcode(instr);
         console.log("Operand Stack: ", OS);
         console.log("Environment: ", ENV);
-        console.log("RTS:",RTS);
+        console.log("RTS:", RTS);
     }
     //console.log("Final Environment: ", ENV);
     console.log("Final Operand Stack: ", OS);
-    console.log("Final RTS:",RTS);
+    console.log("Final RTS:", RTS);
     console.log("Evaluated: " + OS.pop());
 }
 
-function microcode(instr: Instruction){
-    switch (instr[0]){
+function microcode(instr: Instruction) {
+    switch (instr[0]) {
         case OpCodes.POP:
             OS.pop();
             break;
@@ -458,9 +458,9 @@ function microcode(instr: Instruction){
             OS.push(instr[1]);
             break;
         case OpCodes.LDCB:
-            OS.push(instr[1] == "true" ? true : 
-                instr[1] == "false" ? false : 
-                undefined);
+            OS.push(instr[1] == "true" ? true :
+                instr[1] == "false" ? false :
+                    undefined);
             break;
         case OpCodes.LDF:
             break;
@@ -496,50 +496,50 @@ function microcode(instr: Instruction){
         case OpCodes.OR:
             A = OS.pop();
             B = OS.pop();
-            OS.push (B || A);
+            OS.push(B || A);
             break;
         case OpCodes.AND:
             A = OS.pop();
             B = OS.pop();
-            OS.push (B && A);
+            OS.push(B && A);
             break;
         case OpCodes.NOT:
             A = OS.pop();
-            OS.push (!A);
+            OS.push(!A);
             break;
         case OpCodes.EQUALS:
             A = OS.pop();
             B = OS.pop();
-            OS.push(B==A);
+            OS.push(B == A);
             break;
         case OpCodes.NOT_EQUALS:
             A = OS.pop();
             B = OS.pop();
-            OS.push(B!=A);
+            OS.push(B != A);
             break;
         case OpCodes.LESS:
             A = OS.pop();
             B = OS.pop();
-            OS.push(B<A);
+            OS.push(B < A);
             break;
         case OpCodes.LESS_OR_EQUALS:
             A = OS.pop();
             B = OS.pop();
-            OS.push(B<=A);
+            OS.push(B <= A);
             break;
         case OpCodes.GREATER:
             A = OS.pop();
             B = OS.pop();
-            OS.push(B>A);
+            OS.push(B > A);
             break;
         case OpCodes.GREATER_OR_EQUALS:
             A = OS.pop();
             B = OS.pop();
-            OS.push(B>=A);
+            OS.push(B >= A);
             break;
         case OpCodes.ASSIGN:
             A = instr[1] as string;
-            B = OS[OS.length-1];
+            B = OS[OS.length - 1];
             addMappingToCurrentFrame(A, B);
             //console.log(ENV);
             //console.log(OS);
@@ -548,7 +548,7 @@ function microcode(instr: Instruction){
             //console.log(PC);
             //console.log(OS);
             //console.log(ENV);
-            A = OS[OS.length-1];
+            A = OS[OS.length - 1];
             B = instr[1];
             OS.pop();
             OS.pop();
@@ -565,13 +565,13 @@ function microcode(instr: Instruction){
             break;
         case OpCodes.CALL:
             A = [] //args
-            for (let i = instr[1] as number - 1; i >= 0; i--){
+            for (let i = instr[1] as number - 1; i >= 0; i--) {
                 A[i] = OS.pop()
             }
             B = OS.pop() //Closure with param names
             C = new Frame() //Frame to extend environment with
 
-            for (let i = 0; i < B[1].length; i++){
+            for (let i = 0; i < B[1].length; i++) {
                 C[B[1][i]] = A[i]
             }
 
@@ -581,7 +581,7 @@ function microcode(instr: Instruction){
             break;
         case OpCodes.RESET:
             A = RTS.pop();
-            while (A[0] != "CALL_FRAME"){
+            while (A[0] != "CALL_FRAME") {
                 A = RTS.pop();
             }
             PC = A[1];
