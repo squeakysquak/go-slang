@@ -111,6 +111,7 @@ import { EosContext } from "./GoParser";
 import * as fs from 'fs';
 
 import OpCodes from './opcodes'
+import { compile } from './compiler';
 
 export class Frame {
     [Key: string]: number | boolean | Closure;
@@ -208,6 +209,7 @@ function lookupIdentifier(identifier: string) {
 
 
 let input = fs.readFileSync('gotests/constants.go', 'utf8');
+Instrs = compile(input);
 
 
 function run() {
