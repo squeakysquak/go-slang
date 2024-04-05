@@ -23,7 +23,6 @@
  */
 
 let HEAP: DataView;
-let heap_initialised = false;
 let free = -1;
 
 const N_NODES = 1024;
@@ -236,7 +235,6 @@ function heap_initialise() {
         heap_tag_set_free(addr, true);
         free = addr;
     }
-    heap_initialised = true;
 }
 
 heap_initialise();
