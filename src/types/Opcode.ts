@@ -28,3 +28,4 @@ export enum Opcode {
     EXIT_BLOCK = "EXIT_BLOCK",
     DONE = "DONE"
 }
+export default Opcode;
