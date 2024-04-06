@@ -4,7 +4,7 @@ import { compile } from './compiler';
 import { Instruction } from './types/Instruction';
 import { Opcode } from './types/Opcode';
 
-export class Frame {
+class Frame {
     [Key: string]: number | boolean | Closure;
 }
 
@@ -16,7 +16,7 @@ export type BlockFrame = [
 
 let Instrs: Instruction[] = []
 let PC = 0
-export let ENV: Frame[] = [new Frame()]
+let ENV: Frame[] = [new Frame()]
 let OS: any[] = []
 let RTS: BlockFrame[] = []
 

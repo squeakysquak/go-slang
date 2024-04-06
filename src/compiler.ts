@@ -1,12 +1,17 @@
 import { CharStreams, CommonTokenStream } from "antlr4ts";
 import { ArgumentsContext, AssignmentContext, BlockContext, ExpressionContext, FunctionDeclContext, GoParser, OperandContext, PackageClauseContext, ReturnStmtContext, StatementContext, VarSpecContext } from "./GoParser";
 import { GoParserListener } from "./GoParserListener";
-import { Argument, Closure, ENV } from "./GoVirtualMachine";
+import { Closure } from "./GoVirtualMachine";
 import { GoLexer } from "./GoLexer";
 import { ParseTreeWalker } from "antlr4ts/tree/ParseTreeWalker";
 import { Instruction } from "./types/Instruction";
 import { Opcode } from "./types/Opcode";
 import { InstructionArgument } from "./types/InstructionArgument";
+
+class Frame {
+    [Key: string]: number | boolean | Closure;
+}
+let ENV: Frame[] = [new Frame()]
 
 class GoCompiler implements GoParserListener {
     Instrs: Instruction[];
