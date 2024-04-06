@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 
-import OpCodes from './opcodes'
 import { compile } from './compiler';
+import { Instruction } from './types/Instruction';
+import { Opcode } from './types/Opcode';
 
 export class Frame {
     [Key: string]: number | boolean | Closure;
@@ -44,11 +45,6 @@ export type Address = [
     number? // instruction index within function; optional
 ]
 export type Argument = number | boolean | string | Offset | Address | Closure
-export type Instruction = [
-    string, // opcode
-    Argument?,
-    Argument?
-]
 export type Closure = [
     string, //tag
     string[], //params
@@ -103,7 +99,7 @@ Instrs = compile(input);
 
 
 function run() {
-    while (Instrs[PC][0] != OpCodes.DONE) {
+    while (Instrs[PC].opcode != Opcode.DONE) {
         const instr = Instrs[PC++]
         console.log(instr);
 
@@ -119,116 +115,116 @@ function run() {
 }
 
 function microcode(instr: Instruction) {
-    switch (instr[0]) {
-        case OpCodes.POP:
+    switch (instr.opcode) {
+        case Opcode.POP:
             OS.pop();
             break;
-        case OpCodes.GOTO:
-            PC = (instr[1] as number)
+        case Opcode.GOTO:
+            PC = (instr.args[0] as number)
             break;
-        case OpCodes.ENTER_BLOCK:
+        case Opcode.ENTER_BLOCK:
             pushFrame();
             break;
-        case OpCodes.EXIT_BLOCK:
+        case Opcode.EXIT_BLOCK:
             popFrame();
             break;
-        case OpCodes.LDF:
-        case OpCodes.LDCI:
-            OS.push(instr[1]);
+        case Opcode.LDF:
+        case Opcode.LDCI:
+            OS.push(instr.args[0]);
             break;
-        case OpCodes.LDCB:
-            OS.push(instr[1] == "true" ? true :
-                instr[1] == "false" ? false :
+        case Opcode.LDCB:
+            OS.push(instr.args[0] == "true" ? true :
+                instr.args[0] == "false" ? false :
                     undefined);
             break;
-        case OpCodes.LDF:
+        case Opcode.LDF:
             break;
-        case OpCodes.ADD:
+        case Opcode.ADD:
             A = OS.pop();
             B = OS.pop();
             OS.push(B + A);
             break;
-        case OpCodes.MINUS:
+        case Opcode.MINUS:
             A = OS.pop();
             B = OS.pop();
             OS.push(B - A);
             break;
-        case OpCodes.NEGATIVE:
+        case Opcode.NEGATIVE:
             A = OS.pop();
             OS.push(-A);
             break;
-        case OpCodes.MULT:
+        case Opcode.MULT:
             A = OS.pop();
             B = OS.pop();
             OS.push(B * A);
             break;
-        case OpCodes.DIV:
+        case Opcode.DIV:
             A = OS.pop();
             B = OS.pop();
             OS.push(B / A);
             break;
-        case OpCodes.MOD:
+        case Opcode.MOD:
             A = OS.pop();
             B = OS.pop();
             OS.push(B % A);
             break;
-        case OpCodes.OR:
+        case Opcode.OR:
             A = OS.pop();
             B = OS.pop();
             OS.push(B || A);
             break;
-        case OpCodes.AND:
+        case Opcode.AND:
             A = OS.pop();
             B = OS.pop();
             OS.push(B && A);
             break;
-        case OpCodes.NOT:
+        case Opcode.NOT:
             A = OS.pop();
             OS.push(!A);
             break;
-        case OpCodes.EQUALS:
+        case Opcode.EQUALS:
             A = OS.pop();
             B = OS.pop();
             OS.push(B == A);
             break;
-        case OpCodes.NOT_EQUALS:
+        case Opcode.NOT_EQUALS:
             A = OS.pop();
             B = OS.pop();
             OS.push(B != A);
             break;
-        case OpCodes.LESS:
+        case Opcode.LESS:
             A = OS.pop();
             B = OS.pop();
             OS.push(B < A);
             break;
-        case OpCodes.LESS_OR_EQUALS:
+        case Opcode.LESS_OR_EQUALS:
             A = OS.pop();
             B = OS.pop();
             OS.push(B <= A);
             break;
-        case OpCodes.GREATER:
+        case Opcode.GREATER:
             A = OS.pop();
             B = OS.pop();
             OS.push(B > A);
             break;
-        case OpCodes.GREATER_OR_EQUALS:
+        case Opcode.GREATER_OR_EQUALS:
             A = OS.pop();
             B = OS.pop();
             OS.push(B >= A);
             break;
-        case OpCodes.ASSIGN:
-            A = instr[1] as string;
+        case Opcode.ASSIGN:
+            A = instr.args[0] as string;
             B = OS[OS.length - 1];
             addMappingToCurrentFrame(A, B);
             //console.log(ENV);
             //console.log(OS);
             break;
-        case OpCodes.REASSIGN:
+        case Opcode.REASSIGN:
             //console.log(PC);
             //console.log(OS);
             //console.log(ENV);
             A = OS[OS.length - 1];
-            B = instr[1];
+            B = instr.args[0];
             OS.pop();
             OS.pop();
             OS.push(A);
@@ -236,15 +232,15 @@ function microcode(instr: Instruction) {
             //console.log(OS);
             //console.log(ENV);
             break;
-        case OpCodes.LDC:
-            A = instr[1] as string;
+        case Opcode.LDC:
+            A = instr.args[0] as string;
             OS.push(lookupIdentifier(A));
             //console.log("ENV: ", ENV);
             //console.log("OS: ", OS);
             break;
-        case OpCodes.CALL:
+        case Opcode.CALL:
             A = [] //args
-            for (let i = instr[1] as number - 1; i >= 0; i--) {
+            for (let i = instr.args[0] as number - 1; i >= 0; i--) {
                 A[i] = OS.pop()
             }
             B = OS.pop() //Closure with param names
@@ -258,7 +254,7 @@ function microcode(instr: Instruction) {
             extend(C); //Extend environment
             PC = B[2];
             break;
-        case OpCodes.RESET:
+        case Opcode.RESET:
             A = RTS.pop();
             while (A[0] != "CALL_FRAME") {
                 A = RTS.pop();
