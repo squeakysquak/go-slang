@@ -1,219 +1,372 @@
 import { CharStreams, CommonTokenStream } from "antlr4ts";
-import { ArgumentsContext, AssignmentContext, BlockContext, ExpressionContext, FunctionDeclContext, GoParser, OperandContext, PackageClauseContext, ReturnStmtContext, StatementContext, VarSpecContext } from "./GoParser";
-import { GoParserListener } from "./GoParserListener";
-import { Closure } from "./GoVirtualMachine";
+import { AssignmentContext, BasicLitContext, BlockContext, ConstSpecContext, ExpressionContext, ExpressionStmtContext, FunctionDeclContext, GoParser, IntegerContext, OperandNameContext, ParameterDeclContext, PrimaryExprContext, ReturnStmtContext, ShortVarDeclContext, SourceFileContext, VarSpecContext } from "./GoParser";
 import { GoLexer } from "./GoLexer";
-import { ParseTreeWalker } from "antlr4ts/tree/ParseTreeWalker";
 import Instruction from "./types/Instruction";
 import Opcode from "./types/Opcode";
 import InstructionArgument from "./types/InstructionArgument";
+import builtins from "./builtins";
+import { GoParserVisitor } from "./GoParserVisitor";
+import { AbstractParseTreeVisitor } from 'antlr4ts/tree/AbstractParseTreeVisitor'
+import InstructionTree from "./types/InstructionTree";
 
-class Frame {
-    [Key: string]: number | boolean | Closure;
+class CompileFrame {
+    symbols: Map<string, [number, boolean]>;
+    numSym: number;
+    par: CompileFrame | undefined;
+    constructor(par?: CompileFrame) {
+        this.symbols = new Map();
+        this.numSym = 0;
+        this.par = par;
+    }
+    has(sym: string) {
+        return this.symbols.has(sym);
+    }
+    hasRec(sym: string) {
+        let fr: CompileFrame | undefined = this;
+        while (fr) {
+            if (fr.has(sym)) return true;
+            fr = fr.par;
+        }
+        return false;
+    }
+    index(sym: string) {
+        if (!this.has(sym)) throw Error("index: symbol does not exist");
+        return this.symbols.get(sym)?.[0] as number;
+    }
+    indexRec(sym: string): [number, number] {
+        let fr: CompileFrame | undefined = this;
+        for (let i = 0; fr; ++i) {
+            if (fr.has(sym)) return [i, fr.index(sym)];
+            fr = fr.par;
+        }
+        throw Error("indexRec: symbol does not exist");
+    }
+    isConst(sym: string) {
+        if (!this.has(sym)) throw Error("index: symbol does not exist");
+        return this.symbols.get(sym)?.[1] as boolean;
+    }
+    isConstRec(sym: string) {
+        let fr: CompileFrame | undefined = this;
+        while (fr) {
+            if (fr.has(sym)) return fr.isConst(sym);
+            fr = fr.par;
+        }
+        throw Error("isConst: symbol does not exist");
+    }
+    addSymbol(sym: string, is_const: boolean = false) {
+        if (this.has(sym)) throw Error("addSymbol: symbol already exists");
+        const new_index = this.numSym;
+        this.symbols.set(sym, [new_index, is_const]);
+        this.numSym += 1;
+        return new_index;
+    }
+    addDummy() {
+        const new_index = this.numSym;
+        this.numSym += 1;
+        return new_index;
+    }
 }
-let ENV: Frame[] = [new Frame()]
 
-class GoCompiler implements GoParserListener {
+const builtinFrame = new CompileFrame();
+for (let i = 0; i < builtins.length; ++i) {
+    builtinFrame.addSymbol(builtins[i][0]);
+}
+
+const operatorInstructionMap = {
+    unary: new Map([
+        [GoParser.PLUS, Opcode.UPLUS],
+        [GoParser.MINUS, Opcode.UMINUS],
+        [GoParser.EXCLAMATION, Opcode.NOT],
+        [GoParser.CARET, Opcode.BITWISE_NOT],
+        [GoParser.STAR, Opcode.DEREF],
+        [GoParser.AMPERSAND, Opcode.REF],
+        [GoParser.RECEIVE, Opcode.RECV],
+    ]),
+    binary: new Map([
+        [GoParser.STAR, Opcode.MULT],
+        [GoParser.DIV, Opcode.DIV],
+        [GoParser.MOD, Opcode.MOD],
+        [GoParser.LSHIFT, Opcode.LSHIFT],
+        [GoParser.RSHIFT, Opcode.RSHIFT],
+        [GoParser.AMPERSAND, Opcode.BITWISE_AND],
+        [GoParser.BIT_CLEAR, Opcode.BITWISE_CLEAR],
+        [GoParser.PLUS, Opcode.ADD],
+        [GoParser.MINUS, Opcode.SUB],
+        [GoParser.OR, Opcode.BITWISE_OR],
+        [GoParser.CARET, Opcode.BITWISE_XOR],
+        [GoParser.EQUALS, Opcode.EQUALS],
+        [GoParser.NOT_EQUALS, Opcode.NOT_EQUALS],
+        [GoParser.LESS, Opcode.LESS],
+        [GoParser.LESS_OR_EQUALS, Opcode.LESS_OR_EQUALS],
+        [GoParser.GREATER, Opcode.GREATER],
+        [GoParser.GREATER_OR_EQUALS, Opcode.GREATER_OR_EQUALS],
+        [GoParser.LOGICAL_AND, Opcode.AND],
+        [GoParser.LOGICAL_OR, Opcode.OR],
+    ]),
+};
+
+class ParameterDeclVisitor extends AbstractParseTreeVisitor<string[]> implements GoParserVisitor<string[]> {
+    visitParameterDecl?(ctx: ParameterDeclContext) {
+        return ctx.identifierList()?.IDENTIFIER().map(id => id.text) ?? [""]
+    }
+    protected defaultResult(): string[] {
+        return [];
+    }
+    protected aggregateResult(aggregate: string[], nextResult: string[]): string[] {
+        return aggregate.concat(nextResult);
+    }
+}
+
+class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements GoParserVisitor<InstructionTree> {
     Instrs: Instruction[];
+    currentFrame: CompileFrame;
 
     constructor() {
+        super();
         this.Instrs = [];
+        this.currentFrame = new CompileFrame(builtinFrame);
     }
 
-    //Instruction adding 
+    //// Utility functions
     addNullaryInstruction(opCode: Opcode) {
         const ins = new Instruction(opCode, []);
         this.Instrs.push(ins)
     }
-
     addUnaryInstruction(opCode: Opcode, arg1: InstructionArgument) {
         const ins = new Instruction(opCode, [arg1]);
         this.Instrs.push(ins)
     }
-
     addBinaryInstruction(opCode: Opcode, arg1: InstructionArgument, arg2: InstructionArgument) {
         const ins = new Instruction(opCode, [arg1, arg2]);
         this.Instrs.push(ins)
     }
-
-    enterPackageClause?(ctx: PackageClauseContext): void {
-        console.log("package clause: " + ctx.text);
+    enterFrame() {
+        this.currentFrame = new CompileFrame(this.currentFrame);
+    }
+    exitFrame() {
+        if (!this.currentFrame.par) throw Error("internal error: exited more blocks than entered");
+        this.currentFrame = this.currentFrame.par;
     }
 
-    enterStatement?(ctx: StatementContext): void {
-        console.log("Statement: " + ctx.text);
-        this.addNullaryInstruction(Opcode.POP);
-    }
-
-    enterFunctionDecl?: ((ctx: FunctionDeclContext) => void) | undefined = (ctx: FunctionDeclContext) => {
-        let funcName = ctx.IDENTIFIER().text
-        if (funcName != "main") {
-            console.log("Function declaration: " + funcName);
-            const paramsCtx = ctx.signature().parameters().parameterDecl();
-            let params: any[] = []
-
-            for (let i = 0; i < paramsCtx.length; i++) {
-                params.push(paramsCtx[i].identifierList()?.text);
+    ///// Declarations and assignments
+    visitConstSpec?(ctx: ConstSpecContext) {
+        const syms = ctx.identifierList().IDENTIFIER();
+        const exprs = ctx.expressionList()?.expression();
+        if (!exprs || syms.length != exprs.length) throw Error("mismatched number of init exprs");
+        const res = new InstructionTree();
+        for (let i = 0; i < syms.length; ++i) {
+            try {
+                const idx = this.currentFrame.addSymbol(syms[i].text, true);
+                res.push(this.visit(exprs[i]));
+                res.push(new Instruction(Opcode.ASSIGN, [0, idx]));
+            } catch (e) {
+                throw Error("redefining '" + syms[i].text + "'");
             }
-
-            let closure: Closure = [funcName, params, this.Instrs.length + 2, ENV]; //Skip the GOTO instr
-            this.addUnaryInstruction(Opcode.LDF, closure);
         }
+        return res;
     }
-
-    exitFunctionDecl?: ((ctx: FunctionDeclContext) => void) | undefined = (ctx: FunctionDeclContext) => {
-        let funcName = ctx.IDENTIFIER().text
-        if (funcName != "main") {
-            for (let i = 0; this.Instrs.length; i++) {
-                if (this.Instrs[i].opcode == "LDF" && this.Instrs[i].args[0] != undefined) {
-                    let closure: Closure = this.Instrs[i].args[0] as Closure
-                    if (closure[0] == funcName) {
-                        //Replace the ENTER_BLOCK instr with GOTO, CALL instr already extends env.
-                        const ins = new Instruction(Opcode.GOTO, [this.Instrs.length]);
-                        this.Instrs[i + 1] = ins
-
-                        //Assign closure to funcName
-                        this.addUnaryInstruction(Opcode.ASSIGN, funcName);
-
-                        break
-                    }
+    visitVarSpec?(ctx: VarSpecContext) {
+        const syms = ctx.identifierList().IDENTIFIER();
+        const exprs = ctx.expressionList()?.expression();
+        if (exprs && syms.length != exprs.length) throw Error("mismatched number of init exprs");
+        const res = new InstructionTree();
+        for (let i = 0; i < syms.length; ++i) {
+            try {
+                const idx = this.currentFrame.addSymbol(syms[i].text, true);
+                if (exprs) {
+                    res.push(this.visit(exprs[i]));
+                    res.push(new Instruction(Opcode.ASSIGN, [0, idx]));
                 }
+            } catch (e) {
+                throw Error("redefining '" + syms[i].text + "'");
             }
         }
-    };
-
-    exitReturnStmt?: ((ctx: ReturnStmtContext) => void) | undefined = (ctx: ReturnStmtContext) => {
-        console.log("Exited return stmt: " + ctx.text);
-        this.addNullaryInstruction(Opcode.RESET);
+        return res;
     }
-
-    enterBlock?: ((ctx: BlockContext) => void) | undefined = (ctx: BlockContext) => {
-        console.log("Blocked entered");
-        this.addNullaryInstruction(Opcode.ENTER_BLOCK);
-    }
-
-    exitBlock?: ((ctx: BlockContext) => void) | undefined = (ctx: BlockContext) => {
-        console.log("Block exited");
-        this.addNullaryInstruction(Opcode.EXIT_BLOCK);
-    }
-
-    exitVarSpec?: ((ctx: VarSpecContext) => void) | undefined = (ctx: VarSpecContext) => {
-        let identifiers = ctx.identifierList().IDENTIFIER();
-        console.log("var spec: " + ctx.text);
-        for (let i = identifiers.length - 1; i >= 0; i--) {
-            //console.log(identifiers[i].text);
-            if (i < identifiers.length - 1) {
-                this.addNullaryInstruction(Opcode.POP);
+    visitShortVarDecl?(ctx: ShortVarDeclContext) {
+        const syms = ctx.identifierList().IDENTIFIER();
+        const exprs = ctx.expressionList()?.expression();
+        if (!exprs || syms.length != exprs.length) throw Error("mismatched number of init exprs");
+        const res = new InstructionTree();
+        for (let i = 0; i < syms.length; ++i) {
+            try {
+                const idx = this.currentFrame.addSymbol(syms[i].text, true);
+                res.push(this.visit(exprs[i]));
+                res.push(new Instruction(Opcode.ASSIGN, [0, idx]));
+            } catch (e) {
+                throw Error("redefining '" + syms[i].text + "'");
             }
-            this.addUnaryInstruction(Opcode.ASSIGN, identifiers[i].text);
         }
-    };
-
-    enterArguments?: ((ctx: ArgumentsContext) => void) | undefined = (ctx: ArgumentsContext) => {
-        // Add your code here
-        //console.log("args: " + ctx.text);
-    };
-
-    exitExpression?: ((ctx: ExpressionContext) => void) | undefined = (ctx: ExpressionContext) => {
-        if (ctx._unary_op != undefined) {
-
-            console.log("unary op:", ctx.text)
-            if (ctx.MINUS() != undefined) {
-                console.log(ctx.MINUS()?.text);
-                this.addNullaryInstruction(Opcode.NEGATIVE);
+        return res;
+    }
+    visitFunctionDecl?(ctx: FunctionDeclContext) {
+        const sym = ctx.IDENTIFIER().text;
+        let func_idx;
+        try {
+            func_idx = this.currentFrame.addSymbol(sym, true);
+        } catch (e) {
+            throw Error("redefining '" + sym + "'");
+        }
+        const block = ctx.block();
+        if (!block) throw Error("");
+        const res = new InstructionTree();
+        this.enterFrame();
+        const enterBlockInstr = new Instruction(Opcode.ENTER_BLOCK);
+        res.push(enterBlockInstr)
+        const params = (new ParameterDeclVisitor()).visit(ctx.signature().parameters());
+        for (let i = params.length - 1; i >= 0; --i) {
+            let idx;
+            if (params[i]) {
+                try {
+                    idx = this.currentFrame.addSymbol(params[i]);
+                } catch (e) {
+                    throw Error("redefining '" + params[i] + "'");
+                }
+            } else {
+                idx = this.currentFrame.addDummy();
             }
-            else if (ctx.EXCLAMATION() != undefined) {
-                console.log(ctx.EXCLAMATION()?.text);
-                this.addNullaryInstruction(Opcode.NOT);
-            }
+            res.push(new Instruction(Opcode.ASSIGN, [0, idx]));
+        }
+        res.push(this.visitChildren(block));
+        const frameSize = this.currentFrame.numSym;
+        enterBlockInstr.args.push(frameSize);
+        res.push(new Instruction(Opcode.RETURN)); // if function hasn't returned yet, it should return now
+        res.push(new Instruction(Opcode.EXIT_BLOCK));
+        this.exitFrame(); // parameter frame
+        return new InstructionTree([
+            new Instruction(Opcode.JUMP, [res.size]),
+            res,
+            new Instruction(Opcode.LDF, [-(res.size + 1)]),
+            new Instruction(Opcode.ASSIGN, [0, func_idx])
+        ]);
+    }
+    visitAssignment?(ctx: AssignmentContext) {
+        const assignTargets = ctx.expressionList(0).expression();
+        const assignOp = ctx.assign_op().start.type;
+        const assignValues = ctx.expressionList(1).expression();
+        if (assignTargets.length !== assignValues.length) throw Error("mismatched number of assignment exprs");
+        const res = new InstructionTree();
+        for (let i = 0; i < assignTargets.length; ++i) {
+            res.push(this.visit(assignTargets[i]));
+            res.push(this.visit(assignValues[i]));
+            res.push(new Instruction(Opcode.REASSIGN));
+        }
+        return res;
+    }
+    visitBlock?(ctx: BlockContext) {
+        this.enterFrame();
+        const res = this.visitChildren(ctx);
+        const frameSize = this.currentFrame.numSym;
+        this.exitFrame();
+        return new InstructionTree([
+            new Instruction(Opcode.ENTER_BLOCK, [frameSize]),
+            res,
+            new Instruction(Opcode.EXIT_BLOCK)
+        ]);
+    }
+
+    ///// Expressions
+    visitExpression?(ctx: ExpressionContext) {
+        const res = this.visitChildren(ctx);
+        if (ctx.primaryExpr()) return res; // don't bother it
+        if (ctx._unary_op) {
+            const operator = ctx._unary_op.type;
+            if (!operatorInstructionMap.unary.has(operator)) throw Error("unknown unary operator '" + ctx._unary_op.text + "'");
+            res.push(new Instruction(operatorInstructionMap.unary.get(operator) as Opcode));
+            return res;
         } else { //Binary operations
-
-            if (ctx.PLUS() != undefined) {
-                console.log(ctx.PLUS()?.text);
-                this.addNullaryInstruction(Opcode.ADD);
-            }
-            else if (ctx.MINUS() != undefined) {
-                console.log(ctx.MINUS()?.text);
-                this.addNullaryInstruction(Opcode.MINUS);
-            }
-            else if (ctx.DIV() != undefined) {
-                console.log(ctx.DIV()?.text);
-                this.addNullaryInstruction(Opcode.DIV);
-            }
-            else if (ctx.STAR() != undefined) {
-                console.log(ctx.STAR()?.text);
-                this.addNullaryInstruction(Opcode.MULT);
-            }
-            else if (ctx.MOD() != undefined) {
-                console.log(ctx.MOD()?.text);
-                this.addNullaryInstruction(Opcode.MOD);
-            }
-            else if (ctx.LOGICAL_OR() != undefined) {
-                console.log(ctx.LOGICAL_OR()?.text);
-                this.addNullaryInstruction(Opcode.OR);
-            }
-            else if (ctx.LOGICAL_AND() != undefined) {
-                console.log(ctx.LOGICAL_AND()?.text);
-                this.addNullaryInstruction(Opcode.AND);
-            }
-            else if (ctx.EQUALS() != undefined) {
-                console.log(ctx.EQUALS()?.text);
-                this.addNullaryInstruction(Opcode.EQUALS);
-            }
-            else if (ctx.NOT_EQUALS() != undefined) {
-                console.log(ctx.NOT_EQUALS()?.text);
-                this.addNullaryInstruction(Opcode.NOT_EQUALS);
-            }
-            else if (ctx.LESS() != undefined) {
-                console.log(ctx.LESS()?.text);
-                this.addNullaryInstruction(Opcode.LESS);
-            }
-            else if (ctx.LESS_OR_EQUALS() != undefined) {
-                console.log(ctx.LESS_OR_EQUALS()?.text);
-                this.addNullaryInstruction(Opcode.LESS_OR_EQUALS);
-            }
-            else if (ctx.GREATER() != undefined) {
-                console.log(ctx.GREATER()?.text);
-                this.addNullaryInstruction(Opcode.GREATER);
-            }
-            else if (ctx.GREATER_OR_EQUALS() != undefined) {
-                console.log(ctx.GREATER_OR_EQUALS()?.text);
-                this.addNullaryInstruction(Opcode.GREATER_OR_EQUALS);
-            }
+            const op = (ctx._mul_op ?? ctx._add_op ?? ctx._rel_op ?? ctx.LOGICAL_AND()?.symbol ?? ctx.LOGICAL_OR()?.symbol);
+            if (!op) throw Error("unknown operator, expr: " + ctx.text);
+            const operator = op.type;
+            if (!operatorInstructionMap.binary.has(operator)) throw Error("unknown binary operator '" + op.text + "' (type: " + op.type + ")");
+            res.push(new Instruction(operatorInstructionMap.binary.get(operator) as Opcode));
+            return res;
         }
     };
-
-    enterOperand?: ((ctx: OperandContext) => void) | undefined = (ctx: OperandContext) => {
-        if (ctx.literal() != undefined) {
-            const literal = ctx.literal(); //LiteralContext
-
-            if (literal?.basicLit() != undefined) {
-                const basicLiteral = literal.basicLit()
-                if (basicLiteral?.integer() != undefined) {
-                    console.log("operand (int): " + ctx.text)
-                    this.addUnaryInstruction(Opcode.LDCI, parseInt(ctx.text as string));
-                }
-            }
-        } else if (ctx.operandName() != undefined) {
-            const name = ctx.operandName();
-            if (name?.text == "true" || name?.text == "false") {
-                console.log("operand (bool): " + ctx.text)
-                this.addUnaryInstruction(Opcode.LDCB, ctx.text);
-            } else { //variable/function name
-                console.log("operand (name): " + ctx.text);
-                this.addUnaryInstruction(Opcode.LDC, ctx.text);
-            }
+    visitExpressionStmt?(ctx: ExpressionStmtContext) {
+        const res = this.visitChildren(ctx);
+        res.push(new Instruction(Opcode.POP));
+        return res;
+    }
+    visitBasicLit?(ctx: BasicLitContext) {
+        if (ctx.NIL_LIT()) {
+            return new InstructionTree([
+                new Instruction(Opcode.LDN)
+            ]);
+        } else if (ctx.FLOAT_LIT()) {
+            const lit = ctx.FLOAT_LIT()?.text as string;
+            return new InstructionTree([
+                new Instruction(Opcode.LDCF, [parseFloat(lit)])
+            ]);
+        } else if (ctx.string_()) {
+            throw Error("strings not implemented");
+        }
+        // else: handled by exitInteger
+        return this.visitChildren(ctx);
+    }
+    visitInteger?(ctx: IntegerContext) {
+        if (ctx.DECIMAL_LIT()) {
+            return new InstructionTree([
+                new Instruction(Opcode.LDCI, [parseInt(ctx.DECIMAL_LIT()?.text as string)])
+            ]);
+        } else {
+            throw Error("use decimal integers");
         }
     }
-
-    exitArguments?: ((ctx: ArgumentsContext) => void) | undefined = (ctx: ArgumentsContext) => {
-        //console.log("Exited Arguments: "+ ctx.text);
-        this.addUnaryInstruction(Opcode.CALL, ctx.expressionList()?.expression().length as number)
+    visitOperandName?(ctx: OperandNameContext) {
+        this.visitChildren(ctx);
+        const sym = ctx.IDENTIFIER().text;
+        if (sym === "true" || sym === "false") {
+            return new InstructionTree([
+                new Instruction(Opcode.LDCB, [sym === "true"])
+            ]);
+        }
+        if (!this.currentFrame.hasRec(sym)) throw Error("unknown symbol '" + sym + "'");
+        return new InstructionTree([
+            new Instruction(Opcode.LD, this.currentFrame.indexRec(sym))
+        ]);
     }
 
-    exitAssignment?: ((ctx: AssignmentContext) => void) | undefined = (ctx: AssignmentContext) => {
-        console.log("assignment: " + ctx.expressionList(0).text);
-        this.addUnaryInstruction(Opcode.REASSIGN, ctx.expressionList(0).text);
+    ///// Control Flow
+    visitReturnStmt?(ctx: ReturnStmtContext) {
+        const res = this.visitChildren(ctx);
+        res.push(new Instruction(Opcode.RETURN));
+        return res;
+    }
+    visitPrimaryExpr?(ctx: PrimaryExprContext) {
+        const args = ctx.arguments();
+        if (args) {
+            const loadedArgs = this.visit(args);
+            const loadedFunc = this.visit(ctx.primaryExpr() as PrimaryExprContext);
+            return new InstructionTree([
+                loadedArgs,
+                loadedFunc,
+                new Instruction(Opcode.CALL)
+            ]);
+        }
+        return this.visitChildren(ctx);
+    }
+
+    ///// Program wrapper
+    visitSourceFile?(ctx: SourceFileContext) {
+        const prog = this.visitChildren(ctx);
+        if (!this.currentFrame.has("main")) throw Error("main not found");
+        return new InstructionTree([
+            new Instruction(Opcode.ENTER_BLOCK, [this.currentFrame.numSym]),
+            prog,
+            new Instruction(Opcode.LD, this.currentFrame.indexRec("main")),
+            new Instruction(Opcode.CALL),
+            new Instruction(Opcode.EXIT_BLOCK),
+            new Instruction(Opcode.DONE)
+        ]);
+    }
+
+    protected defaultResult(): InstructionTree {
+        return new InstructionTree();
+    }
+    protected aggregateResult(aggregate: InstructionTree, nextResult: InstructionTree): InstructionTree {
+        aggregate.push(nextResult);
+        return aggregate;
     }
 }
 
@@ -225,16 +378,17 @@ export function compile(input: string) {
     let parser = new GoParser(tokenStream);
 
     let tree = parser.sourceFile(); //Parse tree object
-    console.log(tree.toStringTree(parser)); //prints tree, kind of unreadable though
-
+    // console.log(tree.toStringTree(parser)); //prints tree, kind of unreadable though
 
     const compiler = new GoCompiler();
 
-    ParseTreeWalker.DEFAULT.walk(compiler as GoParserListener, tree);
+    compiler.Instrs = compiler.visit(tree).flatten();
 
-    compiler.addNullaryInstruction(Opcode.DONE);
 
-    console.log("Compiled instructions: ", compiler.Instrs);
+    console.log("Compiled instructions:");
+    for (let i = 0; i < compiler.Instrs.length; ++i) {
+        console.log(i.toString().padStart(3), Opcode[compiler.Instrs[i].opcode].padStart(20), compiler.Instrs[i].args.join(" "));
+    }
 
     return compiler.Instrs
 }

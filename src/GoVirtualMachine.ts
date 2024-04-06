@@ -5,7 +5,33 @@ import Instruction from './types/Instruction';
 import Opcode from './types/Opcode';
 
 class Frame {
-    [Key: string]: number | boolean | Closure;
+    slots: [any][];
+    par?: Frame;
+    constructor(size: number, par?: Frame) {
+        this.par = par;
+        this.slots = [];
+        for (let i = 0; i < size; ++i) {
+            this.slots.push([undefined]);
+        }
+    }
+    retrieve(spec: [number, number]) {
+        const [depth, id] = spec;
+        let fr: Frame = this;
+        for (let i = 0; i < depth; ++i) {
+            if (!fr.par) throw Error("frame at that depth does not exist");
+            fr = fr.par;
+        }
+        return fr.slots[id];
+    }
+    assign(spec: [number, number], val: any) {
+        const [depth, id] = spec;
+        let fr: Frame = this;
+        for (let i = 0; i < depth; ++i) {
+            if (!fr.par) throw Error("frame at that depth does not exist");
+            fr = fr.par;
+        }
+        fr.slots[id][0] = val;
+    }
 }
 
 export type BlockFrame = [
@@ -16,9 +42,9 @@ export type BlockFrame = [
 
 let Instrs: Instruction[] = []
 let PC = 0
-let ENV: Frame[] = [new Frame()]
+let ENV: Frame = new Frame(0)
 let OS: any[] = []
-let RTS: BlockFrame[] = []
+let RTS: [number, Frame][] = []
 
 /**
  * when executing concurrent code
@@ -39,67 +65,26 @@ let I: any = 0
 let J: any = 0
 let K: any = 0
 
-export type Offset = number // instructions to skip
-export type Address = [
-    number, // function index
-    number? // instruction index within function; optional
-]
-export type Argument = number | boolean | string | Offset | Address | Closure
-export type Closure = [
-    string, //tag
-    string[], //params
-    number, //PC
-    Frame[] //Environment
-]
-export type GoVMFunction = [
-    number, // stack size
-    number, // environment size
-    number, // number of arguments
-    Instruction[] // code
-]
-export type Program = [
-    number, // index of entry point function
-    GoVMFunction[]
-]
-
 //Environment-related stuff
-function pushFrame() {
-    ENV.push(new Frame());
+function pushFrame(size: number) {
+    ENV = new Frame(size, ENV);
     //console.log(ENV);
-}
-
-function extend(newFrame: Frame) {
-    ENV.push(newFrame);
 }
 
 function popFrame() {
     //console.log(ENV);
-    ENV.pop();
+    if (!ENV.par) throw Error("no frames to pop");
+    ENV = ENV.par;
 }
-
-function addMappingToCurrentFrame(identifier: string, value: number | boolean | Closure) {
-    ENV[ENV.length - 1][identifier] = value;
-}
-
-function lookupIdentifier(identifier: string) {
-    //console.log("lookup for " + identifier);
-    for (let i = ENV.length - 1; i >= 0; i--) {
-        let currentFrame: Frame = ENV[i];
-        if (currentFrame[identifier] != undefined) {
-            //console.log("FOUND: " + currentFrame[identifier]);
-            return currentFrame[identifier];
-        }
-    }
-    return undefined;
-}
-
 
 let input = fs.readFileSync('gotests/constants.go', 'utf8');
 Instrs = compile(input);
 
 
 function run() {
+    let i = 0;
     while (Instrs[PC].opcode != Opcode.DONE) {
+        if (++i > 200) throw Error("naw mate");
         const instr = Instrs[PC++]
         console.log(instr);
 
@@ -119,103 +104,103 @@ function microcode(instr: Instruction) {
         case Opcode.POP:
             OS.pop();
             break;
-        case Opcode.GOTO:
-            PC = (instr.args[0] as number)
+        case Opcode.JUMP:
+            PC += (instr.args[0] as number)
             break;
         case Opcode.ENTER_BLOCK:
-            pushFrame();
+            A = instr.args[0] as number;
+            pushFrame(A);
             break;
         case Opcode.EXIT_BLOCK:
             popFrame();
             break;
         case Opcode.LDF:
+            OS.push([[PC + (instr.args[0] as number), ENV]]);
+            break;
         case Opcode.LDCI:
-            OS.push(instr.args[0]);
+            OS.push([instr.args[0]]); // entry_point / num
             break;
         case Opcode.LDCB:
-            OS.push(instr.args[0] == "true" ? true :
-                instr.args[0] == "false" ? false :
-                    undefined);
-            break;
-        case Opcode.LDF:
+            OS.push([instr.args[0]]); // bool
             break;
         case Opcode.ADD:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B + A);
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B + A]); // num1 + num2
             break;
-        case Opcode.MINUS:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B - A);
+        case Opcode.SUB:
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B - A]); // num1 - num2
             break;
-        case Opcode.NEGATIVE:
-            A = OS.pop();
-            OS.push(-A);
+        case Opcode.UMINUS:
+            A = OS.pop()[0]; // num
+            OS.push([-A]);
             break;
         case Opcode.MULT:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B * A);
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B * A]); // num1 * num2
             break;
         case Opcode.DIV:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B / A);
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B / A]); // num1 / num2 // TODO: special handling for int division?
             break;
         case Opcode.MOD:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B % A);
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B % A]); // num1 % num2
             break;
         case Opcode.OR:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B || A);
+            A = OS.pop()[0]; // bool2
+            B = OS.pop()[0]; // bool1
+            OS.push([B || A]); // bool1 || bool2
             break;
         case Opcode.AND:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B && A);
+            A = OS.pop()[0]; // bool2
+            B = OS.pop()[0]; // bool1
+            OS.push([B && A]); // bool1 && bool2
             break;
         case Opcode.NOT:
-            A = OS.pop();
-            OS.push(!A);
+            A = OS.pop()[0]; // bool
+            OS.push([!A]);
             break;
         case Opcode.EQUALS:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B == A);
+            A = OS.pop()[0]; // o2
+            B = OS.pop()[0]; // o1
+            OS.push([B === A]); // o1 == o2
             break;
         case Opcode.NOT_EQUALS:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B != A);
+            A = OS.pop()[0]; // o2
+            B = OS.pop()[0]; // o1
+            OS.push([B !== A]); // o1 != o2
             break;
         case Opcode.LESS:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B < A);
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B < A]); // num1 < num2
             break;
         case Opcode.LESS_OR_EQUALS:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B <= A);
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B <= A]); // num1 <= num2
             break;
         case Opcode.GREATER:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B > A);
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B > A]); // num1 > num2
             break;
         case Opcode.GREATER_OR_EQUALS:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B >= A);
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B >= A]); // num1 >= num2
             break;
         case Opcode.ASSIGN:
-            A = instr.args[0] as string;
-            B = OS[OS.length - 1];
-            addMappingToCurrentFrame(A, B);
+            A = instr.args[0]; // depth
+            B = instr.args[1]; // idx
+            C = OS.pop()[0]; // data
+            ENV.assign([A, B], C);
             //console.log(ENV);
             //console.log(OS);
             break;
@@ -223,45 +208,47 @@ function microcode(instr: Instruction) {
             //console.log(PC);
             //console.log(OS);
             //console.log(ENV);
-            A = OS[OS.length - 1];
-            B = instr.args[0];
-            OS.pop();
-            OS.pop();
-            OS.push(A);
-            addMappingToCurrentFrame(B, A);
+            A = OS.pop(); // value
+            B = OS.pop(); // target
+            B[0] = A[0];
             //console.log(OS);
             //console.log(ENV);
             break;
-        case Opcode.LDC:
-            A = instr.args[0] as string;
-            OS.push(lookupIdentifier(A));
+        case Opcode.LD:
+            A = instr.args[0]; // depth
+            B = instr.args[1]; // idx
+            OS.push(ENV.retrieve([A, B]));
             //console.log("ENV: ", ENV);
             //console.log("OS: ", OS);
             break;
         case Opcode.CALL:
-            A = [] //args
-            for (let i = instr.args[0] as number - 1; i >= 0; i--) {
-                A[i] = OS.pop()
-            }
-            B = OS.pop() //Closure with param names
-            C = new Frame() //Frame to extend environment with
+            A = OS.pop()[0]; // func
+            RTS.push([PC, ENV]); // return to here
+            [PC, ENV] = A;
+            // A = [] //args
+            // for (let i = instr.args[0] as number - 1; i >= 0; i--) {
+            //     A[i] = OS.pop()
+            // }
+            // B = OS.pop() //Closure with param names
+            // C = new Frame() //Frame to extend environment with
 
-            for (let i = 0; i < B[1].length; i++) {
-                C[B[1][i]] = A[i]
-            }
+            // for (let i = 0; i < B[1].length; i++) {
+            //     C[B[1][i]] = A[i]
+            // }
 
-            RTS.push(["CALL_FRAME", PC, ENV])
-            extend(C); //Extend environment
-            PC = B[2];
+            // 
+            // extend(C); //Extend environment
+            // PC = B[2];
             break;
-        case Opcode.RESET:
-            A = RTS.pop();
-            while (A[0] != "CALL_FRAME") {
-                A = RTS.pop();
-            }
-            PC = A[1];
-            ENV = A[2];
+        case Opcode.RETURN:
+            A = RTS.pop(); // return addr
+            // while (A[0] != "CALL_FRAME") {
+            //     A = RTS.pop();
+            // }
+            [PC, ENV] = A;
             break;
+        default:
+            throw Error("unrecognised opcode " + Opcode[instr.opcode]);
     }
 }
 
