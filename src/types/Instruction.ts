@@ -1,7 +1,7 @@
 import { InstructionArgument } from "./InstructionArgument";
 import { Opcode } from "./Opcode";
 
-export default class Instruction {
+export class Instruction {
     opcode: Opcode;
     args: InstructionArgument[];
     constructor(opcode: Opcode, args: InstructionArgument[]) {
@@ -9,3 +9,4 @@ export default class Instruction {
         this.args = args;
     }
 }
+export default Instruction;

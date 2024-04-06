@@ -4,9 +4,9 @@ import { GoParserListener } from "./GoParserListener";
 import { Closure } from "./GoVirtualMachine";
 import { GoLexer } from "./GoLexer";
 import { ParseTreeWalker } from "antlr4ts/tree/ParseTreeWalker";
-import { Instruction } from "./types/Instruction";
-import { Opcode } from "./types/Opcode";
-import { InstructionArgument } from "./types/InstructionArgument";
+import Instruction from "./types/Instruction";
+import Opcode from "./types/Opcode";
+import InstructionArgument from "./types/InstructionArgument";
 
 class Frame {
     [Key: string]: number | boolean | Closure;

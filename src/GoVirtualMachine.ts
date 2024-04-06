@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 
 import { compile } from './compiler';
-import { Instruction } from './types/Instruction';
-import { Opcode } from './types/Opcode';
+import Instruction from './types/Instruction';
+import Opcode from './types/Opcode';
 
 class Frame {
     [Key: string]: number | boolean | Closure;
