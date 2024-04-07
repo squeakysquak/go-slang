@@ -1,20 +1,21 @@
 import { heap_alloc, heap_get_child, heap_set_child, temp_node_stash, temp_node_unstash } from "../heap";
+import { Frame_alloc } from "./Frame";
 import { Number_alloc } from "./Number";
 import { Stack_alloc, Stack_clear, Stack_index_of, Stack_is_empty, Stack_pop, Stack_push, Stack_search } from "./Stack";
-import { Type } from "./types";
+import VMType from "./VMType";
 
 export function Goroutine_alloc(entry: number) {
     const pc = Number_alloc(entry);
     temp_node_stash(pc);
-    const env = Stack_alloc(); // stack of Environments
+    const env = Frame_alloc(0, -1); // current environment, TODO: add builtins
     temp_node_stash(env);
     const os = Stack_alloc(); // stack of whatever
     temp_node_stash(os);
-    const rts = Stack_alloc(); // stack of Callframes/Blockframes
+    const rts = Stack_alloc(); // stack of Closures
     temp_node_stash(rts);
     const ss = Stack_alloc(); // stack of pointers to channels (channels that this goroutine is waiting on)
     temp_node_stash(ss);
-    const addr = heap_alloc(Type.Goroutine, true, 5);
+    const addr = heap_alloc(VMType.Goroutine, true, 5);
     heap_set_child(addr, 0, pc);
     heap_set_child(addr, 1, env);
     heap_set_child(addr, 2, os);
@@ -37,11 +38,11 @@ export function Goroutine_set_pc(addr: number, new_pc: number) {
 export function Goroutine_inc_pc(addr: number) {
     return Goroutine_set_pc(addr, Goroutine_get_pc(addr) + 1);
 }
-export function Goroutine_push_env(addr: number, ptr: number) {
-    return Stack_push(heap_get_child(addr, 1), ptr);
+export function Goroutine_set_env(addr: number, ptr: number) {
+    return heap_set_child(addr, 1, ptr);
 }
-export function Goroutine_pop_env(addr: number) {
-    return Stack_pop(heap_get_child(addr, 1));
+export function Goroutine_get_env(addr: number) {
+    return heap_get_child(addr, 1);
 }
 export function Goroutine_push_os(addr: number, ptr: number) {
     return Stack_push(heap_get_child(addr, 2), ptr);

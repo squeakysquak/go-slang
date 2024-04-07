@@ -3,7 +3,7 @@ import { Array_alloc } from "./Array";
 import { Goroutine_is_waiting_for, Goroutine_push_os, Goroutine_wait_for, Goroutine_wake } from "./Goroutine";
 import { Number_alloc, Number_get, Number_set } from "./Number";
 import { Stack_alloc, Stack_is_empty, Stack_pop, Stack_push } from "./Stack";
-import { Type } from "./types";
+import VMType from "./VMType";
 
 export function Channel_alloc(slots: number = 0) {
     const ps = Stack_alloc(); // stack of pending sends
@@ -16,7 +16,7 @@ export function Channel_alloc(slots: number = 0) {
     temp_node_stash(arrLen);
     const pos = Number_alloc(0); // position of the next slot
     temp_node_stash(pos);
-    const addr = heap_alloc(Type.Channel, true, 5);
+    const addr = heap_alloc(VMType.Channel, true, 5);
     heap_set_child(addr, 0, ps);
     heap_set_child(addr, 1, gs);
     heap_set_child(addr, 2, arr);

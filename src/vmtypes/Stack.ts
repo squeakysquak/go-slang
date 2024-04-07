@@ -1,5 +1,5 @@
-import { Type } from "./types";
 import { heap_alloc, heap_free, heap_get_child, heap_set_child } from "../heap";
+import VMType from "./VMType";
 
 // Stack is useful for putting things like OS, RTS, etc. in the heap.
 
@@ -14,7 +14,7 @@ function Stack_is_full(addr: number) {
 }
 
 export function Stack_alloc() {
-    const addr = heap_alloc(Type.Stack, true, 6);
+    const addr = heap_alloc(VMType.Stack, true, 6);
     for (let i = 0; i < 6; ++i) { // 6, including next pointer
         heap_set_child(addr, i, -1);
     }
@@ -30,7 +30,7 @@ export function Stack_free(addr: number) { // doesn't free the pointers it conta
 
 export function Stack_push(addr: number, ptr: number) {
     if (Stack_is_full(addr)) {
-        const next = heap_alloc(Type.Stack, true, 6);
+        const next = heap_alloc(VMType.Stack, true, 6);
         for (let i = 0; i < 6; ++i) { // 6, including next pointer
             heap_set_child(next, i, heap_get_child(addr, i));
             heap_set_child(addr, i, -1);

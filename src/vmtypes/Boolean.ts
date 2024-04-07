@@ -1,10 +1,10 @@
-import { Type } from "./types";
 import { heap_add_root, heap_alloc } from "../heap";
+import VMType from "./VMType";
 
-export const False = heap_alloc(Type.False, false, 0);
+export const False = heap_alloc(VMType.False, false, 0);
 heap_add_root(False);
 
-export const True = heap_alloc(Type.True, false, 0);
+export const True = heap_alloc(VMType.True, false, 0);
 heap_add_root(True);
 
 export function is_False(addr: number) {
