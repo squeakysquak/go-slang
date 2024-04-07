@@ -3,5 +3,8 @@ export enum Type {
     True,
     Number,
     Stack,
+    Array,
+    Channel,
+    Goroutine,
     // add more types here
 };
