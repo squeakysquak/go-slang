@@ -1,14 +1,14 @@
 package main
 
 import "fmt"
-
+/*
 func add(x int, y int) int {
     x = x + 2
     return x + y
-}
+}*/
 
 func main() {
-    /*    */
+    /*    
     var reassignTest int = 10
     reassignTest = 3 * (2 + 2) / 2 - 5 // ans: 1
 
@@ -36,5 +36,12 @@ func main() {
     {
         var x = 3
         return add(x, i)
+    }
+    */
+
+    if (1 + 1 == 3){
+        return 1
+    } else {
+        return 2
     }
 }

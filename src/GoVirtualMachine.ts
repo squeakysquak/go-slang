@@ -107,6 +107,13 @@ function microcode(instr: Instruction) {
         case Opcode.JUMP:
             PC += (instr.args[0] as number)
             break;
+        case Opcode.JOF:
+            A = OS.pop();
+            if (A[0] === false){
+                PC += (instr.args[0] as number)
+                console.log("JOF JUMPED PC TO ", PC)
+            }
+            break;
         case Opcode.ENTER_BLOCK:
             A = instr.args[0] as number;
             pushFrame(A);

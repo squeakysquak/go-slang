@@ -46,6 +46,7 @@ export enum Opcode {
 
     ///// Control flow
     JUMP = "JUMP", // JUMP offset ; jump to relative address
+    JOF = "JOF", // JOF offset ; jump to relative address if OS.pop() === false.
     CALL = "CALL", // CALL ; OS: parameters left to right, then function pointer
     RETURN = "RETURN", // RETURN ; jumps to caller
     DONE = "DONE", // DONE ; terminates the program
