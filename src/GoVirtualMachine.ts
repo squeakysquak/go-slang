@@ -1,119 +1,37 @@
-import { ANTLRInputStream, CommonTokenStream } from 'antlr4ts';
-import { GoLexer } from './GoLexer';
-import { GoParser } from './GoParser';
-import { GoParserListener } from './GoParserListener';
-import { ParseTreeWalker } from 'antlr4ts/tree/ParseTreeWalker'
-
-import { SourceFileContext } from "./GoParser";
-import { PackageClauseContext } from "./GoParser";
-import { ImportDeclContext } from "./GoParser";
-import { ImportSpecContext } from "./GoParser";
-import { ImportPathContext } from "./GoParser";
-import { DeclarationContext } from "./GoParser";
-import { ConstDeclContext } from "./GoParser";
-import { ConstSpecContext } from "./GoParser";
-import { IdentifierListContext } from "./GoParser";
-import { ExpressionListContext } from "./GoParser";
-import { TypeDeclContext } from "./GoParser";
-import { TypeSpecContext } from "./GoParser";
-import { AliasDeclContext } from "./GoParser";
-import { TypeDefContext } from "./GoParser";
-import { TypeParametersContext } from "./GoParser";
-import { TypeParameterDeclContext } from "./GoParser";
-import { TypeElementContext } from "./GoParser";
-import { TypeTermContext } from "./GoParser";
-import { FunctionDeclContext } from "./GoParser";
-import { MethodDeclContext } from "./GoParser";
-import { ReceiverContext } from "./GoParser";
-import { VarDeclContext } from "./GoParser";
-import { VarSpecContext } from "./GoParser";
-import { BlockContext } from "./GoParser";
-import { StatementListContext } from "./GoParser";
-import { StatementContext } from "./GoParser";
-import { SimpleStmtContext } from "./GoParser";
-import { ExpressionStmtContext } from "./GoParser";
-import { SendStmtContext } from "./GoParser";
-import { IncDecStmtContext } from "./GoParser";
-import { AssignmentContext } from "./GoParser";
-import { Assign_opContext } from "./GoParser";
-import { ShortVarDeclContext } from "./GoParser";
-import { LabeledStmtContext } from "./GoParser";
-import { ReturnStmtContext } from "./GoParser";
-import { BreakStmtContext } from "./GoParser";
-import { ContinueStmtContext } from "./GoParser";
-import { GotoStmtContext } from "./GoParser";
-import { FallthroughStmtContext } from "./GoParser";
-import { DeferStmtContext } from "./GoParser";
-import { IfStmtContext } from "./GoParser";
-import { SwitchStmtContext } from "./GoParser";
-import { ExprSwitchStmtContext } from "./GoParser";
-import { ExprCaseClauseContext } from "./GoParser";
-import { ExprSwitchCaseContext } from "./GoParser";
-import { TypeSwitchStmtContext } from "./GoParser";
-import { TypeSwitchGuardContext } from "./GoParser";
-import { TypeCaseClauseContext } from "./GoParser";
-import { TypeSwitchCaseContext } from "./GoParser";
-import { TypeListContext } from "./GoParser";
-import { SelectStmtContext } from "./GoParser";
-import { CommClauseContext } from "./GoParser";
-import { CommCaseContext } from "./GoParser";
-import { RecvStmtContext } from "./GoParser";
-import { ForStmtContext } from "./GoParser";
-import { ForClauseContext } from "./GoParser";
-import { RangeClauseContext } from "./GoParser";
-import { GoStmtContext } from "./GoParser";
-import { Type_Context } from "./GoParser";
-import { TypeArgsContext } from "./GoParser";
-import { TypeNameContext } from "./GoParser";
-import { TypeLitContext } from "./GoParser";
-import { ArrayTypeContext } from "./GoParser";
-import { ArrayLengthContext } from "./GoParser";
-import { ElementTypeContext } from "./GoParser";
-import { PointerTypeContext } from "./GoParser";
-import { InterfaceTypeContext } from "./GoParser";
-import { SliceTypeContext } from "./GoParser";
-import { MapTypeContext } from "./GoParser";
-import { ChannelTypeContext } from "./GoParser";
-import { MethodSpecContext } from "./GoParser";
-import { FunctionTypeContext } from "./GoParser";
-import { SignatureContext } from "./GoParser";
-import { ResultContext } from "./GoParser";
-import { ParametersContext } from "./GoParser";
-import { ParameterDeclContext } from "./GoParser";
-import { ExpressionContext } from "./GoParser";
-import { PrimaryExprContext } from "./GoParser";
-import { ConversionContext } from "./GoParser";
-import { OperandContext } from "./GoParser";
-import { LiteralContext } from "./GoParser";
-import { BasicLitContext } from "./GoParser";
-import { IntegerContext } from "./GoParser";
-import { OperandNameContext } from "./GoParser";
-import { QualifiedIdentContext } from "./GoParser";
-import { CompositeLitContext } from "./GoParser";
-import { LiteralTypeContext } from "./GoParser";
-import { LiteralValueContext } from "./GoParser";
-import { ElementListContext } from "./GoParser";
-import { KeyedElementContext } from "./GoParser";
-import { KeyContext } from "./GoParser";
-import { ElementContext } from "./GoParser";
-import { StructTypeContext } from "./GoParser";
-import { FieldDeclContext } from "./GoParser";
-import { String_Context } from "./GoParser";
-import { EmbeddedFieldContext } from "./GoParser";
-import { FunctionLitContext } from "./GoParser";
-import { IndexContext } from "./GoParser";
-import { Slice_Context } from "./GoParser";
-import { TypeAssertionContext } from "./GoParser";
-import { ArgumentsContext } from "./GoParser";
-import { MethodExprContext } from "./GoParser";
-import { EosContext } from "./GoParser";
-
 import * as fs from 'fs';
 
-import OpCodes from './opcodes'
+import { compile } from './compiler';
+import Instruction from './types/Instruction';
+import Opcode from './types/Opcode';
 
 class Frame {
-    [Key: string]: number | boolean | Closure;
+    slots: [any][];
+    par?: Frame;
+    constructor(size: number, par?: Frame) {
+        this.par = par;
+        this.slots = [];
+        for (let i = 0; i < size; ++i) {
+            this.slots.push([undefined]);
+        }
+    }
+    retrieve(spec: [number, number]) {
+        const [depth, id] = spec;
+        let fr: Frame = this;
+        for (let i = 0; i < depth; ++i) {
+            if (!fr.par) throw Error("frame at that depth does not exist");
+            fr = fr.par;
+        }
+        return fr.slots[id];
+    }
+    assign(spec: [number, number], val: any) {
+        const [depth, id] = spec;
+        let fr: Frame = this;
+        for (let i = 0; i < depth; ++i) {
+            if (!fr.par) throw Error("frame at that depth does not exist");
+            fr = fr.par;
+        }
+        fr.slots[id][0] = val;
+    }
 }
 
 export type BlockFrame = [
@@ -124,9 +42,9 @@ export type BlockFrame = [
 
 let Instrs: Instruction[] = []
 let PC = 0
-let ENV: Frame[] = [new Frame()]
+let ENV: Frame = new Frame(0)
 let OS: any[] = []
-let RTS: BlockFrame[] = []
+let RTS: [number, Frame][] = []
 
 /**
  * when executing concurrent code
@@ -147,284 +65,26 @@ let I: any = 0
 let J: any = 0
 let K: any = 0
 
-export type Offset = number // instructions to skip
-export type Address = [
-    number, // function index
-    number? // instruction index within function; optional
-]
-export type Argument = number | boolean | string | Offset | Address | Closure
-export type Instruction = [
-    string, // opcode
-    Argument?,
-    Argument?
-]
-export type Closure = [
-    string, //tag
-    string[], //params
-    number, //PC
-    Frame[] //Environment
-]
-export type GoVMFunction = [
-    number, // stack size
-    number, // environment size
-    number, // number of arguments
-    Instruction[] // code
-]
-export type Program = [
-    number, // index of entry point function
-    GoVMFunction[]
-]
-
-//Instruction adding 
-function addNullaryInstruction(opCode: string) {
-    const ins: Instruction = [opCode]
-    Instrs.push(ins)
-}
-
-function addUnaryInstruction(opCode: string, arg1: Argument) {
-    const ins: Instruction = [opCode, arg1]
-    Instrs.push(ins)
-}
-
-function addBinaryInstruction(opCode: string, arg1: Argument, arg2: Argument) {
-    const ins: Instruction = [opCode, arg1, arg2]
-    Instrs.push(ins)
-}
-
 //Environment-related stuff
-function pushFrame() {
-    ENV.push(new Frame());
+function pushFrame(size: number) {
+    ENV = new Frame(size, ENV);
     //console.log(ENV);
-}
-
-function extend(newFrame: Frame) {
-    ENV.push(newFrame);
 }
 
 function popFrame() {
     //console.log(ENV);
-    ENV.pop();
+    if (!ENV.par) throw Error("no frames to pop");
+    ENV = ENV.par;
 }
 
-function addMappingToCurrentFrame(identifier: string, value: number | boolean | Closure) {
-    ENV[ENV.length - 1][identifier] = value;
-}
-
-function lookupIdentifier(identifier: string) {
-    //console.log("lookup for " + identifier);
-    for (let i = ENV.length - 1; i >= 0; i--) {
-        let currentFrame: Frame = ENV[i];
-        if (currentFrame[identifier] != undefined) {
-            //console.log("FOUND: " + currentFrame[identifier]);
-            return currentFrame[identifier];
-        }
-    }
-    return undefined;
-}
-
-
-// Create the lexer and parser
 let input = fs.readFileSync('gotests/constants.go', 'utf8');
-let inputStream = new ANTLRInputStream(input); //test input, need to somehow link this to use SourceAcademy instead
-let lexer = new GoLexer(inputStream);
-let tokenStream = new CommonTokenStream(lexer);
-let parser = new GoParser(tokenStream);
+Instrs = compile(input);
 
-let tree = parser.sourceFile(); //Parse tree object
-console.log(tree.toStringTree(parser)); //prints tree, kind of unreadable though
-
-class GoCompiler implements GoParserListener {
-    enterPackageClause?(ctx: PackageClauseContext): void {
-        console.log("package clause: " + ctx.text);
-    }
-
-    enterStatement?(ctx: StatementContext): void {
-        console.log("Statement: " + ctx.text);
-        addNullaryInstruction(OpCodes.POP);
-    }
-
-    enterFunctionDecl?: ((ctx: FunctionDeclContext) => void) | undefined = (ctx: FunctionDeclContext) => {
-        let funcName = ctx.IDENTIFIER().text
-        if (funcName != "main") {
-            console.log("Function declaration: " + funcName);
-            const paramsCtx = ctx.signature().parameters().parameterDecl();
-            let params: any[] = []
-
-            for (let i = 0; i < paramsCtx.length; i++) {
-                params.push(paramsCtx[i].identifierList()?.text);
-            }
-
-            let closure: Closure = [funcName, params, Instrs.length + 2, ENV]; //Skip the GOTO instr
-            addUnaryInstruction(OpCodes.LDF, closure);
-        }
-    }
-
-    exitFunctionDecl?: ((ctx: FunctionDeclContext) => void) | undefined = (ctx: FunctionDeclContext) => {
-        let funcName = ctx.IDENTIFIER().text
-        if (funcName != "main") {
-            for (let i = 0; Instrs.length; i++) {
-                if (Instrs[i][0] == "LDF" && Instrs[i][1] != undefined) {
-                    let closure: Closure = Instrs[i][1] as Closure
-                    if (closure[0] == funcName) {
-                        //Replace the ENTER_BLOCK instr with GOTO, CALL instr already extends env.
-                        const ins: Instruction = [OpCodes.GOTO, Instrs.length]
-                        Instrs[i + 1] = ins
-
-                        //Assign closure to funcName
-                        addUnaryInstruction(OpCodes.ASSIGN, funcName);
-
-                        break
-                    }
-                }
-            }
-        }
-    };
-
-    exitReturnStmt?: ((ctx: ReturnStmtContext) => void) | undefined = (ctx: ReturnStmtContext) => {
-        console.log("Exited return stmt: " + ctx.text);
-        addNullaryInstruction(OpCodes.RESET);
-    }
-
-    enterBlock?: ((ctx: BlockContext) => void) | undefined = (ctx: BlockContext) => {
-        console.log("Blocked entered");
-        addNullaryInstruction(OpCodes.ENTER_BLOCK);
-    }
-
-    exitBlock?: ((ctx: BlockContext) => void) | undefined = (ctx: BlockContext) => {
-        console.log("Block exited");
-        addNullaryInstruction(OpCodes.EXIT_BLOCK);
-    }
-
-    exitVarSpec?: ((ctx: VarSpecContext) => void) | undefined = (ctx: VarSpecContext) => {
-        let identifiers = ctx.identifierList().IDENTIFIER();
-        console.log("var spec: " + ctx.text);
-        for (let i = identifiers.length - 1; i >= 0; i--) {
-            //console.log(identifiers[i].text);
-            if (i < identifiers.length - 1) {
-                addNullaryInstruction(OpCodes.POP);
-            }
-            addUnaryInstruction(OpCodes.ASSIGN, identifiers[i].text);
-        }
-    };
-
-    enterArguments?: ((ctx: ArgumentsContext) => void) | undefined = (ctx: ArgumentsContext) => {
-        // Add your code here
-        //console.log("args: " + ctx.text);
-    };
-
-    exitExpression?: ((ctx: ExpressionContext) => void) | undefined = (ctx: ExpressionContext) => {
-        if (ctx._unary_op != undefined) {
-
-            console.log("unary op:", ctx.text)
-            if (ctx.MINUS() != undefined) {
-                console.log(ctx.MINUS()?.text);
-                addNullaryInstruction(OpCodes.NEGATIVE);
-            }
-            else if (ctx.EXCLAMATION() != undefined) {
-                console.log(ctx.EXCLAMATION()?.text);
-                addNullaryInstruction(OpCodes.NOT);
-            }
-        } else { //Binary operations
-
-            if (ctx.PLUS() != undefined) {
-                console.log(ctx.PLUS()?.text);
-                addNullaryInstruction(OpCodes.ADD);
-            }
-            else if (ctx.MINUS() != undefined) {
-                console.log(ctx.MINUS()?.text);
-                addNullaryInstruction(OpCodes.MINUS);
-            }
-            else if (ctx.DIV() != undefined) {
-                console.log(ctx.DIV()?.text);
-                addNullaryInstruction(OpCodes.DIV);
-            }
-            else if (ctx.STAR() != undefined) {
-                console.log(ctx.STAR()?.text);
-                addNullaryInstruction(OpCodes.MULT);
-            }
-            else if (ctx.MOD() != undefined) {
-                console.log(ctx.MOD()?.text);
-                addNullaryInstruction(OpCodes.MOD);
-            }
-            else if (ctx.LOGICAL_OR() != undefined) {
-                console.log(ctx.LOGICAL_OR()?.text);
-                addNullaryInstruction(OpCodes.OR);
-            }
-            else if (ctx.LOGICAL_AND() != undefined) {
-                console.log(ctx.LOGICAL_AND()?.text);
-                addNullaryInstruction(OpCodes.AND);
-            }
-            else if (ctx.EQUALS() != undefined) {
-                console.log(ctx.EQUALS()?.text);
-                addNullaryInstruction(OpCodes.EQUALS);
-            }
-            else if (ctx.NOT_EQUALS() != undefined) {
-                console.log(ctx.NOT_EQUALS()?.text);
-                addNullaryInstruction(OpCodes.NOT_EQUALS);
-            }
-            else if (ctx.LESS() != undefined) {
-                console.log(ctx.LESS()?.text);
-                addNullaryInstruction(OpCodes.LESS);
-            }
-            else if (ctx.LESS_OR_EQUALS() != undefined) {
-                console.log(ctx.LESS_OR_EQUALS()?.text);
-                addNullaryInstruction(OpCodes.LESS_OR_EQUALS);
-            }
-            else if (ctx.GREATER() != undefined) {
-                console.log(ctx.GREATER()?.text);
-                addNullaryInstruction(OpCodes.GREATER);
-            }
-            else if (ctx.GREATER_OR_EQUALS() != undefined) {
-                console.log(ctx.GREATER_OR_EQUALS()?.text);
-                addNullaryInstruction(OpCodes.GREATER_OR_EQUALS);
-            }
-        }
-    };
-
-    enterOperand?: ((ctx: OperandContext) => void) | undefined = (ctx: OperandContext) => {
-        if (ctx.literal() != undefined) {
-            const literal = ctx.literal(); //LiteralContext
-
-            if (literal?.basicLit() != undefined) {
-                const basicLiteral = literal.basicLit()
-                if (basicLiteral?.integer() != undefined) {
-                    console.log("operand (int): " + ctx.text)
-                    addUnaryInstruction(OpCodes.LDCI, parseInt(ctx.text as string));
-                }
-            }
-        } else if (ctx.operandName() != undefined) {
-            const name = ctx.operandName();
-            if (name?.text == "true" || name?.text == "false") {
-                console.log("operand (bool): " + ctx.text)
-                addUnaryInstruction(OpCodes.LDCB, ctx.text);
-            } else { //variable/function name
-                console.log("operand (name): " + ctx.text);
-                addUnaryInstruction(OpCodes.LDC, ctx.text);
-            }
-        }
-    }
-
-    exitArguments?: ((ctx: ArgumentsContext) => void) | undefined = (ctx: ArgumentsContext) => {
-        //console.log("Exited Arguments: "+ ctx.text);
-        addUnaryInstruction(OpCodes.CALL, ctx.expressionList()?.expression().length as number)
-    }
-
-    exitAssignment?: ((ctx: AssignmentContext) => void) | undefined = (ctx: AssignmentContext) => {
-        console.log("assignment: " + ctx.expressionList(0).text);
-        addUnaryInstruction(OpCodes.REASSIGN, ctx.expressionList(0).text);
-    }
-}
-
-const compiler: GoParserListener = new GoCompiler();
-
-ParseTreeWalker.DEFAULT.walk(compiler, tree);
-
-addNullaryInstruction(OpCodes.DONE);
-
-console.log("Compiled instructions: ", Instrs);
 
 function run() {
-    while (Instrs[PC][0] != OpCodes.DONE) {
+    let i = 0;
+    while (Instrs[PC].opcode != Opcode.DONE) {
+        if (++i > 200) throw Error("naw mate");
         const instr = Instrs[PC++]
         console.log(instr);
 
@@ -440,153 +100,155 @@ function run() {
 }
 
 function microcode(instr: Instruction) {
-    switch (instr[0]) {
-        case OpCodes.POP:
+    switch (instr.opcode) {
+        case Opcode.POP:
             OS.pop();
             break;
-        case OpCodes.GOTO:
-            PC = (instr[1] as number)
+        case Opcode.JUMP:
+            PC += (instr.args[0] as number)
             break;
-        case OpCodes.ENTER_BLOCK:
-            pushFrame();
+        case Opcode.ENTER_BLOCK:
+            A = instr.args[0] as number;
+            pushFrame(A);
             break;
-        case OpCodes.EXIT_BLOCK:
+        case Opcode.EXIT_BLOCK:
             popFrame();
             break;
-        case OpCodes.LDF:
-        case OpCodes.LDCI:
-            OS.push(instr[1]);
+        case Opcode.LDF:
+            OS.push([[PC + (instr.args[0] as number), ENV]]);
             break;
-        case OpCodes.LDCB:
-            OS.push(instr[1] == "true" ? true :
-                instr[1] == "false" ? false :
-                    undefined);
+        case Opcode.LDCI:
+            OS.push([instr.args[0]]); // entry_point / num
             break;
-        case OpCodes.LDF:
+        case Opcode.LDCB:
+            OS.push([instr.args[0]]); // bool
             break;
-        case OpCodes.ADD:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B + A);
+        case Opcode.ADD:
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B + A]); // num1 + num2
             break;
-        case OpCodes.MINUS:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B - A);
+        case Opcode.SUB:
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B - A]); // num1 - num2
             break;
-        case OpCodes.NEGATIVE:
-            A = OS.pop();
-            OS.push(-A);
+        case Opcode.UMINUS:
+            A = OS.pop()[0]; // num
+            OS.push([-A]);
             break;
-        case OpCodes.MULT:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B * A);
+        case Opcode.MULT:
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B * A]); // num1 * num2
             break;
-        case OpCodes.DIV:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B / A);
+        case Opcode.DIV:
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B / A]); // num1 / num2 // TODO: special handling for int division?
             break;
-        case OpCodes.MOD:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B % A);
+        case Opcode.MOD:
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B % A]); // num1 % num2
             break;
-        case OpCodes.OR:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B || A);
+        case Opcode.OR:
+            A = OS.pop()[0]; // bool2
+            B = OS.pop()[0]; // bool1
+            OS.push([B || A]); // bool1 || bool2
             break;
-        case OpCodes.AND:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B && A);
+        case Opcode.AND:
+            A = OS.pop()[0]; // bool2
+            B = OS.pop()[0]; // bool1
+            OS.push([B && A]); // bool1 && bool2
             break;
-        case OpCodes.NOT:
-            A = OS.pop();
-            OS.push(!A);
+        case Opcode.NOT:
+            A = OS.pop()[0]; // bool
+            OS.push([!A]);
             break;
-        case OpCodes.EQUALS:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B == A);
+        case Opcode.EQUALS:
+            A = OS.pop()[0]; // o2
+            B = OS.pop()[0]; // o1
+            OS.push([B === A]); // o1 == o2
             break;
-        case OpCodes.NOT_EQUALS:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B != A);
+        case Opcode.NOT_EQUALS:
+            A = OS.pop()[0]; // o2
+            B = OS.pop()[0]; // o1
+            OS.push([B !== A]); // o1 != o2
             break;
-        case OpCodes.LESS:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B < A);
+        case Opcode.LESS:
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B < A]); // num1 < num2
             break;
-        case OpCodes.LESS_OR_EQUALS:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B <= A);
+        case Opcode.LESS_OR_EQUALS:
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B <= A]); // num1 <= num2
             break;
-        case OpCodes.GREATER:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B > A);
+        case Opcode.GREATER:
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B > A]); // num1 > num2
             break;
-        case OpCodes.GREATER_OR_EQUALS:
-            A = OS.pop();
-            B = OS.pop();
-            OS.push(B >= A);
+        case Opcode.GREATER_OR_EQUALS:
+            A = OS.pop()[0]; // num2
+            B = OS.pop()[0]; // num1
+            OS.push([B >= A]); // num1 >= num2
             break;
-        case OpCodes.ASSIGN:
-            A = instr[1] as string;
-            B = OS[OS.length - 1];
-            addMappingToCurrentFrame(A, B);
+        case Opcode.ASSIGN:
+            A = instr.args[0]; // depth
+            B = instr.args[1]; // idx
+            C = OS.pop()[0]; // data
+            ENV.assign([A, B], C);
             //console.log(ENV);
             //console.log(OS);
             break;
-        case OpCodes.REASSIGN:
+        case Opcode.REASSIGN:
             //console.log(PC);
             //console.log(OS);
             //console.log(ENV);
-            A = OS[OS.length - 1];
-            B = instr[1];
-            OS.pop();
-            OS.pop();
-            OS.push(A);
-            addMappingToCurrentFrame(B, A);
+            A = OS.pop(); // value
+            B = OS.pop(); // target
+            B[0] = A[0];
             //console.log(OS);
             //console.log(ENV);
             break;
-        case OpCodes.LDC:
-            A = instr[1] as string;
-            OS.push(lookupIdentifier(A));
+        case Opcode.LD:
+            A = instr.args[0]; // depth
+            B = instr.args[1]; // idx
+            OS.push(ENV.retrieve([A, B]));
             //console.log("ENV: ", ENV);
             //console.log("OS: ", OS);
             break;
-        case OpCodes.CALL:
-            A = [] //args
-            for (let i = instr[1] as number - 1; i >= 0; i--) {
-                A[i] = OS.pop()
-            }
-            B = OS.pop() //Closure with param names
-            C = new Frame() //Frame to extend environment with
+        case Opcode.CALL:
+            A = OS.pop()[0]; // func
+            RTS.push([PC, ENV]); // return to here
+            [PC, ENV] = A;
+            // A = [] //args
+            // for (let i = instr.args[0] as number - 1; i >= 0; i--) {
+            //     A[i] = OS.pop()
+            // }
+            // B = OS.pop() //Closure with param names
+            // C = new Frame() //Frame to extend environment with
 
-            for (let i = 0; i < B[1].length; i++) {
-                C[B[1][i]] = A[i]
-            }
+            // for (let i = 0; i < B[1].length; i++) {
+            //     C[B[1][i]] = A[i]
+            // }
 
-            RTS.push(["CALL_FRAME", PC, ENV])
-            extend(C); //Extend environment
-            PC = B[2];
+            // 
+            // extend(C); //Extend environment
+            // PC = B[2];
             break;
-        case OpCodes.RESET:
-            A = RTS.pop();
-            while (A[0] != "CALL_FRAME") {
-                A = RTS.pop();
-            }
-            PC = A[1];
-            ENV = A[2];
+        case Opcode.RETURN:
+            A = RTS.pop(); // return addr
+            // while (A[0] != "CALL_FRAME") {
+            //     A = RTS.pop();
+            // }
+            [PC, ENV] = A;
             break;
+        default:
+            throw Error("unrecognised opcode " + Opcode[instr.opcode]);
     }
 }
 
