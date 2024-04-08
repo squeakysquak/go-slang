@@ -90,8 +90,10 @@ function run() {
 
         microcode(instr);
         console.log("Operand Stack: ", OS);
+        console.log ("PC: ", PC);
         console.log("Environment: ", ENV);
         console.log("RTS:", RTS);
+        console.log("-----------------");
     }
     //console.log("Final Environment: ", ENV);
     console.log("Final Operand Stack: ", OS);
@@ -106,6 +108,8 @@ function microcode(instr: Instruction) {
             break;
         case Opcode.JUMP:
             PC += (instr.args[0] as number)
+            break;
+        case Opcode.GOTO:
             break;
         case Opcode.JOF:
             A = OS.pop();

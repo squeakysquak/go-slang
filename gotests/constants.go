@@ -39,9 +39,30 @@ func main() {
     }
     */
 
-    if (1 + 1 == 3){
-        return 1
-    } else {
-        return 2
+    var a = 0
+    if (1 + 1 != 2){
+        a = 3
+    }else{
+        a = 5
     }
+
+    var b = 0
+    if (a == 5){
+        b = 1
+    } else if (a == 4){
+        b = 2
+    } else if (a == 3){
+        b = 3
+    }else {
+        b = 4
+    }
+
+    var c = 1
+    if (false){
+        c = 4
+    }
+
+    return c
+
+    
 }

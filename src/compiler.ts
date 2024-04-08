@@ -268,7 +268,9 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
     ///// Expressions
     visitExpression?(ctx: ExpressionContext) {
         const res = this.visitChildren(ctx);
-        if (ctx.primaryExpr()) return res; // don't bother it
+        if (ctx.primaryExpr()) {
+            return res; // don't bother it
+        }
         if (ctx._unary_op) {
             const operator = ctx._unary_op.type;
             if (!operatorInstructionMap.unary.has(operator)) throw Error("unknown unary operator '" + ctx._unary_op.text + "'");
@@ -349,14 +351,33 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
 
     ///// Conditionals
     visitIfStmt?(ctx: IfStmtContext){
+        console.log("COMPILING IF STMT")
         const res = new InstructionTree();
         res.push(this.visitChildren(ctx.expression() as ExpressionContext))
-        for (let i = 0; i < ctx.block().length - 1; i++){
-            let offset = this.visitChildren(ctx.block(i)).size;
-            res.push(new Instruction(Opcode.JOF, [offset]))
-            res.push(this.visitChildren(ctx.block(i)))
+
+        console.log("BLOCKS: ", ctx.block().length);
+
+        let offset = this.visitChildren(ctx.block(0)).size + 1;
+        res.push(new Instruction(Opcode.JOF, [offset]))
+
+        //If part
+        res.push(this.visitChildren(ctx.block(0)))
+        const jump_instr = new Instruction(Opcode.JUMP);
+        res.push(jump_instr);
+        let len = res.size
+
+        //else if part (optional)
+        if (ctx.ifStmt()){
+            res.push(this.visit(ctx.ifStmt() as IfStmtContext));
         }
-        res.push(this.visitChildren(ctx.block(ctx.block().length - 1)))
+
+        //else part (optional)
+        if (ctx.block().length == 2){
+           res.push(this.visitChildren(ctx.block(1)))
+        }
+
+        jump_instr.args[0] = res.size - len;
+        
         return res;
     }
 
