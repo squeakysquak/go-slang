@@ -9,7 +9,7 @@ export function Goroutine_alloc(entry: number) {
     heap_temp_node_stash(pc);
     const env = Frame_alloc(0, -1); // current environment, TODO: add builtins
     heap_temp_node_stash(env);
-    const os = Stack_alloc(); // stack of whatever
+    const os = Stack_alloc(); // stack of References to whatever
     heap_temp_node_stash(os);
     const rts = Stack_alloc(); // stack of Closures
     heap_temp_node_stash(rts);
