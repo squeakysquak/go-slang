@@ -65,8 +65,11 @@ export function Goroutine_pop_ss(addr: number) {
 export function Goroutine_wait_for(addr: number, chan: number) {
     return Goroutine_push_ss(addr, chan);
 }
+export function Goroutine_is_running(addr: number) {
+    return Stack_is_empty(heap_get_child(addr, 4))
+}
 export function Goroutine_is_asleep(addr: number) {
-    return !Stack_is_empty(heap_get_child(addr, 4));
+    return !Goroutine_is_running(addr);
 }
 export function Goroutine_is_waiting_for(addr: number, chan: number) {
     return Stack_search(heap_get_child(addr, 4), chan);

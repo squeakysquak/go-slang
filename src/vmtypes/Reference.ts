@@ -7,9 +7,9 @@ export function Reference_alloc(ptr: number) {
     return addr;
 }
 
-export function Reference_get<T extends number>(addr: number) {
-    return heap_get_child(addr, 0) as T;
+export function Reference_get(addr: number) {
+    return heap_get_child(addr, 0) as number;
 }
-export function Reference_set<T extends number>(addr: number, ptr: T) {
+export function Reference_set(addr: number, ptr: number) {
     return heap_set_child(addr, 0, ptr);
 }
