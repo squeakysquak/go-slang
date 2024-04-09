@@ -128,18 +128,6 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
     }
 
     //// Utility functions
-    addNullaryInstruction(opCode: Opcode) {
-        const ins = new Instruction(opCode, []);
-        this.Instrs.push(ins)
-    }
-    addUnaryInstruction(opCode: Opcode, arg1: InstructionArgument) {
-        const ins = new Instruction(opCode, [arg1]);
-        this.Instrs.push(ins)
-    }
-    addBinaryInstruction(opCode: Opcode, arg1: InstructionArgument, arg2: InstructionArgument) {
-        const ins = new Instruction(opCode, [arg1, arg2]);
-        this.Instrs.push(ins)
-    }
     enterFrame() {
         this.currentFrame = new CompileFrame(this.currentFrame);
     }
@@ -338,10 +326,11 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
         if (args) {
             const loadedArgs = this.visit(args);
             const loadedFunc = this.visit(ctx.primaryExpr() as PrimaryExprContext);
+            const numArgs = args.expressionList()?.expression().length ?? 0;
             return new InstructionTree([
                 loadedArgs,
                 loadedFunc,
-                new Instruction(Opcode.CALL)
+                new Instruction(Opcode.CALL, [numArgs])
             ]);
         }
         return this.visitChildren(ctx);

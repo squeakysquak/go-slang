@@ -46,7 +46,7 @@ export enum Opcode {
 
     ///// Control flow
     JUMP = "JUMP", // JUMP offset ; jump to relative address
-    CALL = "CALL", // CALL ; OS: parameters left to right, then function pointer
+    CALL = "CALL", // CALL numParams ; OS: parameters left to right, then function pointer; the callee is responsible for removing arguments from the OS, except for builtins
     RETURN = "RETURN", // RETURN ; jumps to caller
     DONE = "DONE", // DONE ; terminates the program
 }
