@@ -39,10 +39,10 @@ const CONT_OFFSET = 7;
 ///// Raw word get/set
 
 export function heap_get(addr: number) {
-    return HEAP.getFloat64(addr);
+    return HEAP.getFloat64(addr * WORD_SIZE);
 }
 export function heap_set(addr: number, val: number) {
-    return HEAP.setFloat64(addr, val);
+    return HEAP.setFloat64(addr * WORD_SIZE, val);
 }
 
 ///// Tag get/set
@@ -181,7 +181,7 @@ export function heap_rawalloc() {
         run_gc();
     }
     if (free === -1) {
-        throw Error("heap_alloc: out of memory");
+        throw Error("heap_rawalloc: out of memory");
     }
     const addr = free;
     heap_tag_set_free(addr, false);
@@ -230,9 +230,11 @@ export function heap_initialise() {
     HEAP = view;
     free = -1;
     for (let i = 0; i < N_NODES; ++i) {
-        const addr = i * NODE_SIZE * WORD_SIZE;
+        const addr = i * NODE_SIZE;
         heap_node_set_cont(addr, free);
         heap_tag_set_free(addr, true);
         free = addr;
     }
 }
+
+heap_initialise();
