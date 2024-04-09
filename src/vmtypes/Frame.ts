@@ -1,10 +1,10 @@
-import { heap_alloc, heap_get_child, heap_set_child, temp_node_stash } from "../heap";
+import { heap_alloc, heap_get_child, heap_set_child, heap_temp_node_stash } from "../heap";
 import { Reference_alloc, Reference_set } from "./Reference";
 import VMType from "./VMType";
 
 export function Frame_alloc(size: number, par: number) {
     const addr = heap_alloc(VMType.Frame, true, size + 1);
-    temp_node_stash(addr);
+    heap_temp_node_stash(addr);
     for (let i = 1; i < size + 1; ++i) {
         const box = Reference_alloc(-1);
         heap_set_child(addr, i, box);

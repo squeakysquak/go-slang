@@ -1,4 +1,4 @@
-import { heap_alloc, heap_get_child, heap_set_child, temp_node_stash, temp_node_unstash } from "../heap";
+import { heap_alloc, heap_get_child, heap_set_child, heap_temp_node_stash, heap_temp_node_unstash } from "../heap";
 import { Array_alloc } from "./Array";
 import { Goroutine_is_waiting_for, Goroutine_push_os, Goroutine_wait_for, Goroutine_wake } from "./Goroutine";
 import { Number_alloc, Number_get, Number_set } from "./Number";
@@ -7,26 +7,26 @@ import VMType from "./VMType";
 
 export function Channel_alloc(slots: number = 0) {
     const ps = Stack_alloc(); // stack of pending sends
-    temp_node_stash(ps);
+    heap_temp_node_stash(ps);
     const gs = Stack_alloc(); // stack of goroutines that are waiting on this channel
-    temp_node_stash(gs);
+    heap_temp_node_stash(gs);
     const arr = slots ? Array_alloc(slots) : -1; // array of slots for values
-    temp_node_stash(arr);
+    heap_temp_node_stash(arr);
     const arrLen = Number_alloc(slots); // number of available slots
-    temp_node_stash(arrLen);
+    heap_temp_node_stash(arrLen);
     const pos = Number_alloc(0); // position of the next slot
-    temp_node_stash(pos);
+    heap_temp_node_stash(pos);
     const addr = heap_alloc(VMType.Channel, true, 5);
     heap_set_child(addr, 0, ps);
     heap_set_child(addr, 1, gs);
     heap_set_child(addr, 2, arr);
     heap_set_child(addr, 3, arrLen);
     heap_set_child(addr, 4, pos);
-    temp_node_unstash(); // pos
-    temp_node_unstash(); // arrLen
-    temp_node_unstash(); // arr
-    temp_node_unstash(); // gs
-    temp_node_unstash(); // ps
+    heap_temp_node_unstash(); // pos
+    heap_temp_node_unstash(); // arrLen
+    heap_temp_node_unstash(); // arr
+    heap_temp_node_unstash(); // gs
+    heap_temp_node_unstash(); // ps
     return addr;
 }
 
