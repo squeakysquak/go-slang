@@ -2,7 +2,7 @@ import builtins from "./builtins";
 import { heap_add_root, heap_get_child, heap_initialise, heap_tag_get_n_children, heap_tag_get_type, heap_temp_node_stash, heap_temp_node_unstash } from "./heap";
 import Instruction from "./types/Instruction";
 import Opcode from "./types/Opcode";
-import { Boolean_False, Boolean_alloc, is_Boolean, is_True } from "./vmtypes/Boolean";
+import { Boolean_False, Boolean_alloc, is_Boolean, is_False, is_True } from "./vmtypes/Boolean";
 import { Builtin_alloc, Builtin_get, is_Builtin } from "./vmtypes/Builtin";
 import { Channel_try_recv, Channel_try_send } from "./vmtypes/Channel";
 import { Closure_alloc, Closure_get_env, Closure_get_jump_addr, is_Closure } from "./vmtypes/Closure";
@@ -25,7 +25,7 @@ const unop_microcode = new Map([
         return Number_alloc(-num);
     }],
     [Opcode.NOT, (data: number) => {
-        return Boolean_alloc(is_True(data));
+        return Boolean_alloc(is_False(data));
     }],
     [Opcode.BITWISE_NOT, (data: number) => {
         throw Error("BITWISE_NOT: unimplemented");
@@ -309,6 +309,15 @@ const microcode = new Map([
         const pc = Number_get(Goroutine_get_pc(gor));
         const new_pc = Number_alloc(pc + offset);
         Goroutine_set_pc(gor, new_pc);
+    }],
+    [Opcode.JOF, (gor: number, instr: Instruction) => {
+        const cond = Reference_get(Goroutine_pop_os(gor));
+        if (is_False(cond)) {
+            const offset = instr.args[0] as number;
+            const pc = Number_get(Goroutine_get_pc(gor));
+            const new_pc = Number_alloc(pc + offset);
+            Goroutine_set_pc(gor, new_pc);
+        }
     }],
     [Opcode.CALL, (gor: number, instr: Instruction) => {
         const builtin_or_closure = Reference_get(Goroutine_pop_os(gor));

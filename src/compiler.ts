@@ -1,5 +1,5 @@
 import { CharStreams, CommonTokenStream } from "antlr4ts";
-import { AssignmentContext, BasicLitContext, BlockContext, ConstSpecContext, ExpressionContext, ExpressionStmtContext, FunctionDeclContext, GoParser, GoStmtContext, IntegerContext, OperandNameContext, ParameterDeclContext, PrimaryExprContext, ReturnStmtContext, SendStmtContext, ShortVarDeclContext, SourceFileContext, VarSpecContext } from "./GoParser";
+import { AssignmentContext, BasicLitContext, BlockContext, ConstSpecContext, ExpressionContext, ExpressionStmtContext, FunctionDeclContext, GoParser, GoStmtContext, IfStmtContext, IntegerContext, OperandNameContext, ParameterDeclContext, PrimaryExprContext, ReturnStmtContext, SendStmtContext, ShortVarDeclContext, SourceFileContext, VarSpecContext } from "./GoParser";
 import { GoLexer } from "./GoLexer";
 import Instruction from "./types/Instruction";
 import Opcode from "./types/Opcode";
@@ -255,7 +255,9 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
     ///// Expressions
     visitExpression?(ctx: ExpressionContext) {
         const res = this.visitChildren(ctx);
-        if (ctx.primaryExpr()) return res; // don't bother it
+        if (ctx.primaryExpr()) {
+            return res; // don't bother it
+        }
         if (ctx._unary_op) {
             const operator = ctx._unary_op.type;
             if (!operatorInstructionMap.unary.has(operator)) throw Error("unknown unary operator '" + ctx._unary_op.text + "'");
@@ -333,6 +335,36 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
             ]);
         }
         return this.visitChildren(ctx);
+    }
+    visitIfStmt?(ctx: IfStmtContext) {
+        //console.log("COMPILING IF STMT")
+        const res = new InstructionTree();
+        res.push(this.visit(ctx.expression() as ExpressionContext))
+
+        //console.log("BLOCKS: ", ctx.block().length);
+        let block = this.visit(ctx.block(0))
+        let offset = block.size + 1;
+        res.push(new Instruction(Opcode.JOF, [offset]))
+
+        //If part
+        res.push(block)
+        const jump_instr = new Instruction(Opcode.JUMP);
+        res.push(jump_instr);
+        let len = res.size
+
+        //else if part (optional)
+        if (ctx.ifStmt()) {
+            res.push(this.visit(ctx.ifStmt() as IfStmtContext));
+        }
+
+        //else part (optional)
+        if (ctx.block().length == 2) {
+            res.push(this.visit(ctx.block(1)))
+        }
+
+        jump_instr.args[0] = res.size - len;
+
+        return res;
     }
 
     ///// Concurrency control
