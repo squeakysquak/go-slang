@@ -1,4 +1,4 @@
-import { heap_alloc, heap_get_child, heap_set_child, heap_temp_node_stash, heap_temp_node_unstash } from "../heap";
+import { heap_alloc, heap_get_child, heap_set_child, heap_tag_get_type, heap_temp_node_stash, heap_temp_node_unstash } from "../heap";
 import { Array_alloc } from "./Array";
 import { Goroutine_is_waiting_for, Goroutine_push_os, Goroutine_wait_for, Goroutine_wake } from "./Goroutine";
 import { Number_alloc, Number_get, Number_set } from "./Number";
@@ -98,4 +98,7 @@ export function Channel_try_recv(addr: number, gor: number) { // return true if 
     Stack_push(heap_get_child(addr, 1), gor);
     Goroutine_wait_for(gor, addr);
     return true;
+}
+export function is_Channel(addr: number) {
+    return heap_tag_get_type(addr) === VMType.Channel;
 }

@@ -9,6 +9,7 @@ export enum VMType {
     Array,
     Channel,
     Goroutine,
+    Builtin,
     // add more types here
 };
 

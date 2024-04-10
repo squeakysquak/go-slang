@@ -5,11 +5,9 @@ import { Number_alloc, Number_get } from "./Number";
 import { Stack_alloc, Stack_clear, Stack_index_of, Stack_is_empty, Stack_pop, Stack_push, Stack_search } from "./Stack";
 import VMType from "./VMType";
 
-export function Goroutine_alloc(entry: number) {
+export function Goroutine_alloc(entry: number, env: number) {
     const pc = Number_alloc(entry);
     heap_temp_node_stash(pc);
-    const env = Frame_alloc(0, -1); // current environment, TODO: add builtins
-    heap_temp_node_stash(env);
     const os = Stack_alloc(); // stack of References to whatever
     heap_temp_node_stash(os);
     const rts = Stack_alloc(); // stack of Closures
@@ -29,7 +27,6 @@ export function Goroutine_alloc(entry: number) {
     heap_temp_node_unstash(); // ss
     heap_temp_node_unstash(); // rts
     heap_temp_node_unstash(); // os
-    heap_temp_node_unstash(); // env
     heap_temp_node_unstash(); // pc
     return addr;
 }
@@ -68,12 +65,14 @@ export function Goroutine_pop_ss(addr: number) {
     return Stack_pop(heap_get_child(addr, 4));
 }
 export function Goroutine_wait_for(addr: number, chan: number) {
+    console.log("::::: Goroutine", addr, "is sleeping - waiting for chan", chan);
     return Goroutine_push_ss(addr, chan);
 }
 export function Goroutine_is_alive(addr: number) {
     return is_True(heap_get_child(addr, 5));
 }
 export function Goroutine_kill(addr: number) {
+    console.log("::::: Goroutine", addr, "has terminated");
     const alive = Boolean_alloc(false);
     heap_temp_node_stash(alive);
     const res = heap_set_child(addr, 5, alive);
@@ -90,11 +89,12 @@ export function Goroutine_is_waiting_for(addr: number, chan: number) {
     return Stack_search(heap_get_child(addr, 4), chan);
 }
 export function Goroutine_wake(addr: number, chan: number) {
+    console.log("::::: Goroutine", addr, "was woken by chan", chan);
     const ss = heap_get_child(addr, 4);
     const waker = Number_alloc(Stack_index_of(ss, chan));
     heap_temp_node_stash(waker);
     // push waker and ptr onto OS
-    Goroutine_push_os(addr, waker);
+    // Goroutine_push_os(addr, waker); // we're not set up to process wakers yet
     heap_temp_node_unstash(); // waker
     Stack_clear(ss);
 }
