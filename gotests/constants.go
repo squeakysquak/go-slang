@@ -8,7 +8,7 @@ func add(x int, y int) int {
 }*/
 
 func main() {
-    /*    
+    /*    */
     var reassignTest int = 10
     reassignTest = 3 * (2 + 2) / 2 - 5 // ans: 1
 
@@ -35,12 +35,12 @@ func main() {
 
     {
         var x = 3
-        return add(x, i)
+        //return add(x, i)
     }
-    */
+    
 
     var a = 0
-    if (1 + 1 != 2){
+    if (1 + 1 == 2){
         a = 3
     }else{
         a = 5
@@ -58,11 +58,9 @@ func main() {
     }
 
     var c = 1
-    if (false){
+    if (true){
         c = 4
     }
 
-    return c
-
-    
+    return b
 }
