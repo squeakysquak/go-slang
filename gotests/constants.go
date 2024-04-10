@@ -1,11 +1,12 @@
 package main
 
 import "fmt"
-/*
+/**/
 func add(x int, y int) int {
     x = x + 2
+    x = x - 2 
     return x + y
-}*/
+}
 
 func main() {
     /*    */
@@ -31,12 +32,7 @@ func main() {
     {
         var x = 10
     }
-    x = x + 1
-
-    {
-        var x = 3
-        //return add(x, i)
-    }
+    x = add(x, i) // 1 + 5 = 6
     
 
     var a = 0
@@ -61,6 +57,10 @@ func main() {
     if (true){
         c = 4
     }
+    if(false){
+        c = 5
+    }
 
     return b
+    
 }

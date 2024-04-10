@@ -22,7 +22,7 @@ const unop_microcode = new Map([
         return Number_alloc(-num);
     }],
     [Opcode.NOT, (data: number) => {
-        return Boolean_alloc(is_True(data));
+        return Boolean_alloc(!is_True(data));
     }],
     [Opcode.BITWISE_NOT, (data: number) => {
         throw Error("BITWISE_NOT: unimplemented");
