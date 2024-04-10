@@ -22,7 +22,7 @@ const unop_microcode = new Map([
         return Number_alloc(-num);
     }],
     [Opcode.NOT, (data: number) => {
-        return Boolean_alloc(!is_True(data));
+        return Boolean_alloc(is_False(data));
     }],
     [Opcode.BITWISE_NOT, (data: number) => {
         throw Error("BITWISE_NOT: unimplemented");
@@ -308,11 +308,11 @@ const microcode = new Map([
         Goroutine_set_pc(gor, new_pc);
     }],
     [Opcode.JOF, (gor: number, instr: Instruction) => {
-        const offset = instr.args[0] as number;
-        const pc = Number_get(Goroutine_get_pc(gor));
-        const new_pc = Number_alloc(pc + offset);
         const cond = Reference_get(Goroutine_pop_os(gor));
         if (is_False(cond)){
+            const offset = instr.args[0] as number;
+            const pc = Number_get(Goroutine_get_pc(gor));
+            const new_pc = Number_alloc(pc + offset);
             Goroutine_set_pc(gor, new_pc);
         }
     }],

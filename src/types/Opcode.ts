@@ -47,7 +47,6 @@ export enum Opcode {
     ///// Control flow
     JUMP = "JUMP", // JUMP offset ; jump to relative address
     JOF = "JOF", // JOF offset ; jump to relative address if OS.pop() === false.
-    GOTO = "GOTO",//GOTO address ; set PC to address directly.
     CALL = "CALL", // CALL numParams ; OS: parameters left to right, then function pointer; the callee is responsible for removing arguments from the OS, except for builtins
     RETURN = "RETURN", // RETURN ; jumps to caller
     DONE = "DONE", // DONE ; terminates the program

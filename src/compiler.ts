@@ -340,17 +340,17 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
 
     ///// Conditionals
     visitIfStmt?(ctx: IfStmtContext){
-        console.log("COMPILING IF STMT")
+        //console.log("COMPILING IF STMT")
         const res = new InstructionTree();
-        res.push(this.visitChildren(ctx.expression() as ExpressionContext))
+        res.push(this.visit(ctx.expression() as ExpressionContext))
 
-        console.log("BLOCKS: ", ctx.block().length);
-
-        let offset = this.visitChildren(ctx.block(0)).size + 1;
+        //console.log("BLOCKS: ", ctx.block().length);
+        let block = this.visit(ctx.block(0))
+        let offset = block.size + 1;
         res.push(new Instruction(Opcode.JOF, [offset]))
 
         //If part
-        res.push(this.visitChildren(ctx.block(0)))
+        res.push(block)
         const jump_instr = new Instruction(Opcode.JUMP);
         res.push(jump_instr);
         let len = res.size

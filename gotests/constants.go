@@ -37,7 +37,7 @@ func main() {
 
     var a = 0
     if (1 + 1 == 2){
-        a = 3
+        a = 4
     }else{
         a = 5
     }
