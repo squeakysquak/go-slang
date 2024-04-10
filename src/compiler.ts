@@ -362,7 +362,7 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
 
         //else part (optional)
         if (ctx.block().length == 2){
-           res.push(this.visitChildren(ctx.block(1)))
+           res.push(this.visit(ctx.block(1)))
         }
 
         jump_instr.args[0] = res.size - len;

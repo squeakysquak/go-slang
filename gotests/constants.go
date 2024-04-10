@@ -61,6 +61,6 @@ func main() {
         c = 5
     }
 
-    return b
+    return c
     
 }
