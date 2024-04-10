@@ -13,7 +13,6 @@ export enum Opcode {
     BITWISE_NOT = "BITWISE_NOT", // BITWISE_NOT ;
     DEREF = "DEREF", // DEREF ; OS: pointer to data
     REF = "REF", // REF ; OS: data
-    RECV = "RECV", // RECV ; OS: channel
     // Binary operators
     MULT = "MULT", // MULT ; OS: num1 num2, computes num1 * num2
     DIV = "DIV", // DIV ; OS: num1 num2, computes num1 / num2
@@ -48,7 +47,11 @@ export enum Opcode {
     JUMP = "JUMP", // JUMP offset ; jump to relative address
     CALL = "CALL", // CALL numParams ; OS: parameters left to right, then function pointer; the callee is responsible for removing arguments from the OS, except for builtins
     RETURN = "RETURN", // RETURN ; jumps to caller
-    GO = "GO", // GO offset ; fork and make new goroutine, parent goroutine jumps to offset
     DONE = "DONE", // DONE ; terminates the program
+
+    ///// Concurrency control
+    GO = "GO", // GO offset ; fork and make new goroutine, parent goroutine jumps to offset
+    SEND = "SEND", // SEND ; OS: chan val, tries to send val via chan
+    RECV = "RECV", // RECV ; OS: chan, tries to receive value from chan; this is actually defined as an unary operator
 }
 export default Opcode;

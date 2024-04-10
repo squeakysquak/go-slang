@@ -4,6 +4,7 @@ import Instruction from "./types/Instruction";
 import Opcode from "./types/Opcode";
 import { Boolean_False, Boolean_alloc, is_Boolean, is_True } from "./vmtypes/Boolean";
 import { Builtin_alloc, Builtin_get, is_Builtin } from "./vmtypes/Builtin";
+import { Channel_try_recv, Channel_try_send } from "./vmtypes/Channel";
 import { Closure_alloc, Closure_get_env, Closure_get_jump_addr, is_Closure } from "./vmtypes/Closure";
 import { Frame_alloc, Frame_assign, Frame_get_par, Frame_retrieve } from "./vmtypes/Frame";
 import { Goroutine_alloc, Goroutine_get_env, Goroutine_get_pc, Goroutine_inc_pc, Goroutine_is_alive, Goroutine_is_running, Goroutine_kill, Goroutine_pop_os, Goroutine_pop_rts, Goroutine_push_os, Goroutine_push_rts, Goroutine_set_env, Goroutine_set_pc } from "./vmtypes/Goroutine";
@@ -36,10 +37,6 @@ const unop_microcode = new Map([
     }],
     [Opcode.REF, (data: number) => {
         throw Error("REF: unimplemented");
-        return -1;
-    }],
-    [Opcode.RECV, (data: number) => {
-        throw Error("RECV: unimplemented");
         return -1;
     }],
 ]);
@@ -235,7 +232,6 @@ const microcode = new Map([
     unop_microcode_wrapper(Opcode.BITWISE_NOT),
     unop_microcode_wrapper(Opcode.DEREF),
     unop_microcode_wrapper(Opcode.REF),
-    unop_microcode_wrapper(Opcode.RECV),
     // Binary operators
     binop_microcode_wrapper(Opcode.MULT),
     binop_microcode_wrapper(Opcode.DIV),
@@ -337,6 +333,11 @@ const microcode = new Map([
         Goroutine_set_pc(gor, Closure_get_jump_addr(return_closure));
         Goroutine_set_env(gor, Closure_get_env(return_closure));
     }],
+    [Opcode.DONE, (gor: number, instr: Instruction) => {
+        Goroutine_kill(gor);
+    }],
+
+    ///// Concurrency control
     [Opcode.GO, (gor: number, instr: Instruction) => {
         const offset = instr.args[0] as number;
         const pc = Number_get(Goroutine_get_pc(gor));
@@ -347,8 +348,20 @@ const microcode = new Map([
         const new_pc = Number_alloc(pc + offset);
         Goroutine_set_pc(gor, new_pc);
     }],
-    [Opcode.DONE, (gor: number, instr: Instruction) => {
-        Goroutine_kill(gor);
+    [Opcode.SEND, (gor: number, instr: Instruction) => {
+        const val = Goroutine_pop_os(gor);
+        const chan = Reference_get(Goroutine_pop_os(gor));
+        heap_temp_node_stash(val);
+        heap_temp_node_stash(chan);
+        Channel_try_send(chan, gor, val);
+        heap_temp_node_unstash(); // chan
+        heap_temp_node_unstash(); // val
+    }],
+    [Opcode.RECV, (gor: number, instr: Instruction) => {
+        const chan = Reference_get(Goroutine_pop_os(gor));
+        heap_temp_node_stash(chan);
+        Channel_try_recv(chan, gor);
+        heap_temp_node_unstash(); //
     }],
 ]);
 
