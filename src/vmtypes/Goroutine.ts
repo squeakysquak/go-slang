@@ -1,4 +1,5 @@
 import { heap_alloc, heap_get_child, heap_set_child, heap_temp_node_stash, heap_temp_node_unstash } from "../heap";
+import { Boolean_alloc, is_True } from "./Boolean";
 import { Frame_alloc } from "./Frame";
 import { Number_alloc, Number_get } from "./Number";
 import { Stack_alloc, Stack_clear, Stack_index_of, Stack_is_empty, Stack_pop, Stack_push, Stack_search } from "./Stack";
@@ -15,12 +16,16 @@ export function Goroutine_alloc(entry: number) {
     heap_temp_node_stash(rts);
     const ss = Stack_alloc(); // stack of pointers to channels (channels that this goroutine is waiting on)
     heap_temp_node_stash(ss);
-    const addr = heap_alloc(VMType.Goroutine, true, 5);
+    const alive = Boolean_alloc(true);
+    heap_temp_node_stash(alive);
+    const addr = heap_alloc(VMType.Goroutine, true, 6);
     heap_set_child(addr, 0, pc);
     heap_set_child(addr, 1, env);
     heap_set_child(addr, 2, os);
     heap_set_child(addr, 3, rts);
     heap_set_child(addr, 4, ss);
+    heap_set_child(addr, 5, alive);
+    heap_temp_node_unstash(); // alive
     heap_temp_node_unstash(); // ss
     heap_temp_node_unstash(); // rts
     heap_temp_node_unstash(); // os
@@ -65,8 +70,18 @@ export function Goroutine_pop_ss(addr: number) {
 export function Goroutine_wait_for(addr: number, chan: number) {
     return Goroutine_push_ss(addr, chan);
 }
+export function Goroutine_is_alive(addr: number) {
+    return is_True(heap_get_child(addr, 5));
+}
+export function Goroutine_kill(addr: number) {
+    const alive = Boolean_alloc(false);
+    heap_temp_node_stash(alive);
+    const res = heap_set_child(addr, 5, alive);
+    heap_temp_node_unstash(); // alive
+    return res;
+}
 export function Goroutine_is_running(addr: number) {
-    return Stack_is_empty(heap_get_child(addr, 4))
+    return Goroutine_is_alive(addr) && Stack_is_empty(heap_get_child(addr, 4));
 }
 export function Goroutine_is_asleep(addr: number) {
     return !Goroutine_is_running(addr);

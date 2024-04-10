@@ -1,5 +1,5 @@
 import { CharStreams, CommonTokenStream } from "antlr4ts";
-import { AssignmentContext, BasicLitContext, BlockContext, ConstSpecContext, ExpressionContext, ExpressionStmtContext, FunctionDeclContext, GoParser, IntegerContext, OperandNameContext, ParameterDeclContext, PrimaryExprContext, ReturnStmtContext, ShortVarDeclContext, SourceFileContext, VarSpecContext } from "./GoParser";
+import { AssignmentContext, BasicLitContext, BlockContext, ConstSpecContext, ExpressionContext, ExpressionStmtContext, FunctionDeclContext, GoParser, GoStmtContext, IntegerContext, OperandNameContext, ParameterDeclContext, PrimaryExprContext, ReturnStmtContext, ShortVarDeclContext, SourceFileContext, VarSpecContext } from "./GoParser";
 import { GoLexer } from "./GoLexer";
 import Instruction from "./types/Instruction";
 import Opcode from "./types/Opcode";
@@ -334,6 +334,14 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
             ]);
         }
         return this.visitChildren(ctx);
+    }
+    visitGoStmt?(ctx: GoStmtContext) {
+        const exprInstr = this.visit(ctx.expression());
+        exprInstr.push(new Instruction(Opcode.DONE));
+        return new InstructionTree([
+            new Instruction(Opcode.GO, [exprInstr.size]),
+            exprInstr
+        ]);
     }
 
     ///// Program wrapper

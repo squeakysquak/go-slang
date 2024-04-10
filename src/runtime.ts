@@ -4,7 +4,7 @@ import Opcode from "./types/Opcode";
 import { Boolean_False, Boolean_alloc, is_Boolean, is_True } from "./vmtypes/Boolean";
 import { Closure_alloc, Closure_get_env, Closure_get_jump_addr, is_Closure } from "./vmtypes/Closure";
 import { Frame_alloc, Frame_assign, Frame_get_par, Frame_retrieve } from "./vmtypes/Frame";
-import { Goroutine_alloc, Goroutine_get_env, Goroutine_get_pc, Goroutine_inc_pc, Goroutine_is_running, Goroutine_pop_os, Goroutine_pop_rts, Goroutine_push_os, Goroutine_push_rts, Goroutine_set_env, Goroutine_set_pc } from "./vmtypes/Goroutine";
+import { Goroutine_alloc, Goroutine_get_env, Goroutine_get_pc, Goroutine_inc_pc, Goroutine_is_alive, Goroutine_is_running, Goroutine_kill, Goroutine_pop_os, Goroutine_pop_rts, Goroutine_push_os, Goroutine_push_rts, Goroutine_set_env, Goroutine_set_pc } from "./vmtypes/Goroutine";
 import { Number_alloc, Number_get, is_Number } from "./vmtypes/Number";
 import { Reference_alloc, Reference_get, Reference_set, is_Reference } from "./vmtypes/Reference";
 import { Stack_alloc, Stack_find, Stack_is_empty, Stack_pop, Stack_push } from "./vmtypes/Stack";
@@ -322,6 +322,20 @@ const microcode = new Map([
         Goroutine_set_pc(gor, Closure_get_jump_addr(return_closure));
         Goroutine_set_env(gor, Closure_get_env(return_closure));
     }],
+    [Opcode.GO, (gor: number, instr: Instruction) => {
+        const offset = instr.args[0] as number;
+        const pc = Number_get(Goroutine_get_pc(gor));
+        const new_gor = Goroutine_alloc(pc);
+        heap_temp_node_stash(new_gor);
+        Stack_push(goroutines, new_gor);
+        heap_temp_node_unstash(); // new_gor
+        Goroutine_set_env(new_gor, Goroutine_get_env(gor));
+        const new_pc = Number_alloc(pc + offset);
+        Goroutine_set_pc(gor, new_pc);
+    }],
+    [Opcode.DONE, (gor: number, instr: Instruction) => {
+        Goroutine_kill(gor);
+    }],
 ]);
 
 function debug_show_object(obj: number): any[] {
@@ -342,15 +356,16 @@ function debug_show_object(obj: number): any[] {
     return res;
 }
 
+let goroutines: number;
 export function run(instrs: Instruction[]) {
-    const gors = Stack_alloc();
-    heap_add_root(gors);
+    goroutines = Stack_alloc();
+    heap_add_root(goroutines);
     const main_gor = Goroutine_alloc(0);
     heap_temp_node_stash(main_gor);
-    Stack_push(gors, main_gor);
+    Stack_push(goroutines, main_gor);
     heap_temp_node_unstash(); // main_gor
-    while (instrs[Number_get(Goroutine_get_pc(main_gor))].opcode !== Opcode.DONE) {
-        const running_gor = Stack_find(gors, Goroutine_is_running);
+    while (Goroutine_is_alive(main_gor)) {
+        const running_gor = Stack_find(goroutines, Goroutine_is_running);
         if (running_gor === -1) {
             throw Error("all goroutines are asleep!");
         }

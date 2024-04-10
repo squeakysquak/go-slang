@@ -48,6 +48,7 @@ export enum Opcode {
     JUMP = "JUMP", // JUMP offset ; jump to relative address
     CALL = "CALL", // CALL numParams ; OS: parameters left to right, then function pointer; the callee is responsible for removing arguments from the OS, except for builtins
     RETURN = "RETURN", // RETURN ; jumps to caller
+    GO = "GO", // GO offset ; fork and make new goroutine, parent goroutine jumps to offset
     DONE = "DONE", // DONE ; terminates the program
 }
 export default Opcode;
