@@ -39,10 +39,10 @@ const CONT_OFFSET = 7;
 ///// Raw word get/set
 
 export function heap_get(addr: number) {
-    return HEAP.getFloat64(addr);
+    return HEAP.getFloat64(addr * WORD_SIZE);
 }
 export function heap_set(addr: number, val: number) {
-    return HEAP.setFloat64(addr, val);
+    return HEAP.setFloat64(addr * WORD_SIZE, val);
 }
 
 ///// Tag get/set
@@ -124,10 +124,10 @@ export function heap_remove_root(addr: number) {
     return roots.delete(addr);
 }
 
-export function temp_node_stash(addr: number) {
+export function heap_temp_node_stash(addr: number) {
     return temp_nodes.push(addr); // allocation of any given object should have an upper bound on the number of stashed allocations, and can be treated as constant memory
 }
-export function temp_node_unstash() {
+export function heap_temp_node_unstash() {
     if (temp_nodes.length === 0) {
         throw Error("temp_node_unstash: internal error - temp_nodes is invalid");
     }
@@ -164,12 +164,12 @@ function sweep() {
 }
 
 export function run_gc() {
-    for (let i = 0; i < temp_nodes.length; ++i) {
-        heap_tag_set_mark(temp_nodes[i], true);
-    }
     const it = roots.entries();
     for (const i of it) {
         mark(i[0]);
+    }
+    for (let i = 0; i < temp_nodes.length; ++i) {
+        mark(temp_nodes[i]);
     }
     sweep();
 }
@@ -181,7 +181,7 @@ export function heap_rawalloc() {
         run_gc();
     }
     if (free === -1) {
-        throw Error("heap_alloc: out of memory");
+        throw Error("heap_rawalloc: out of memory");
     }
     const addr = free;
     heap_tag_set_free(addr, false);
@@ -198,11 +198,11 @@ export function heap_rawfree(addr: number) {
 export function heap_alloc(type: number, children_are_pointers: boolean, n_children: number) {
     const n_nodes = Math.max(1, Math.ceil(n_children / 6));
     for (let i = 0; i < n_nodes; ++i) {
-        temp_node_stash(heap_rawalloc());
+        heap_temp_node_stash(heap_rawalloc());
     }
     let addr = -1;
     for (let i = 0; i < n_nodes; ++i) {
-        const temp = temp_node_unstash();
+        const temp = heap_temp_node_unstash();
         heap_node_set_cont(temp, addr);
         addr = temp;
     }
@@ -224,13 +224,13 @@ export function heap_free(addr: number) {
 
 ///// Initialisation
 
-function heap_initialise() {
+export function heap_initialise() {
     const data = new ArrayBuffer(N_NODES * NODE_SIZE * WORD_SIZE);
     const view = new DataView(data);
     HEAP = view;
     free = -1;
     for (let i = 0; i < N_NODES; ++i) {
-        const addr = i * NODE_SIZE * WORD_SIZE;
+        const addr = i * NODE_SIZE;
         heap_node_set_cont(addr, free);
         heap_tag_set_free(addr, true);
         free = addr;

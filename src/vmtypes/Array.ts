@@ -1,8 +1,8 @@
 import { heap_alloc, heap_get_child, heap_set_child } from "../heap";
-import { Type } from "./types";
+import VMType from "./VMType";
 
 export function Array_alloc(len: number) {
-    const addr = heap_alloc(Type.Array, true, len);
+    const addr = heap_alloc(VMType.Array, true, len);
     return addr;
 }
 
