@@ -90,7 +90,7 @@ export function Channel_try_recv(addr: number, gor: number) { // return true if 
     }
     const nextSlot = Channel_get_next_slot(addr);
     if (nextSlot > 0) {
-        const ptr = heap_get_child(heap_get_child(addr, 2), nextSlot);
+        const ptr = heap_get_child(heap_get_child(addr, 2), nextSlot - 1);
         Goroutine_push_os(gor, ptr);
         Number_set(heap_get_child(addr, 4), nextSlot - 1);
         return false;
