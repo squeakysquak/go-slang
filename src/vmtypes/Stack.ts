@@ -127,7 +127,7 @@ export function Stack_get_index(addr: number, idx: number) {
 // for O(1) memory usage, cb should not be dynamically created (i.e. a lambda) and should not be recursive
 export function Stack_find(addr: number, cb: ((ptr: number) => boolean)) {
     while (addr !== -1) {
-        for (let i = 0; i < 5; ++i) {
+        for (let i = 4; i >= 0; --i) {
             const val = heap_get_child(addr, i);
             if (val === -1) continue;
             if (cb(val)) return val;
