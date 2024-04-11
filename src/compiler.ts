@@ -1,9 +1,8 @@
 import { CharStreams, CommonTokenStream } from "antlr4ts";
-import { AssignmentContext, BasicLitContext, BlockContext, ConstSpecContext, ExpressionContext, ExpressionStmtContext, FunctionDeclContext, GoParser, IfStmtContext, IntegerContext, OperandNameContext, ParameterDeclContext, PrimaryExprContext, ReturnStmtContext, ShortVarDeclContext, SourceFileContext, VarSpecContext } from "./GoParser";
+import { AssignmentContext, BasicLitContext, BlockContext, ConstSpecContext, ExpressionContext, ExpressionStmtContext, FunctionDeclContext, GoParser, GoStmtContext, IfStmtContext, IntegerContext, OperandNameContext, ParameterDeclContext, PrimaryExprContext, ReturnStmtContext, SendStmtContext, ShortVarDeclContext, SourceFileContext, VarSpecContext } from "./GoParser";
 import { GoLexer } from "./GoLexer";
 import Instruction from "./types/Instruction";
 import Opcode from "./types/Opcode";
-import InstructionArgument from "./types/InstructionArgument";
 import builtins from "./builtins";
 import { GoParserVisitor } from "./GoParserVisitor";
 import { AbstractParseTreeVisitor } from 'antlr4ts/tree/AbstractParseTreeVisitor'
@@ -337,9 +336,7 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
         }
         return this.visitChildren(ctx);
     }
-
-    ///// Conditionals
-    visitIfStmt?(ctx: IfStmtContext){
+    visitIfStmt?(ctx: IfStmtContext) {
         //console.log("COMPILING IF STMT")
         const res = new InstructionTree();
         res.push(this.visit(ctx.expression() as ExpressionContext))
@@ -356,17 +353,32 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
         let len = res.size
 
         //else if part (optional)
-        if (ctx.ifStmt()){
+        if (ctx.ifStmt()) {
             res.push(this.visit(ctx.ifStmt() as IfStmtContext));
         }
 
         //else part (optional)
-        if (ctx.block().length == 2){
-           res.push(this.visit(ctx.block(1)))
+        if (ctx.block().length == 2) {
+            res.push(this.visit(ctx.block(1)))
         }
 
         jump_instr.args[0] = res.size - len;
-        
+
+        return res;
+    }
+
+    ///// Concurrency control
+    visitGoStmt?(ctx: GoStmtContext) {
+        const exprInstr = this.visit(ctx.expression());
+        exprInstr.push(new Instruction(Opcode.DONE));
+        return new InstructionTree([
+            new Instruction(Opcode.GO, [exprInstr.size]),
+            exprInstr
+        ]);
+    }
+    visitSendStmt?(ctx: SendStmtContext) {
+        const res = this.visitChildren(ctx);
+        res.push(new Instruction(Opcode.SEND));
         return res;
     }
 

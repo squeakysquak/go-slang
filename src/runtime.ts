@@ -1,10 +1,13 @@
+import builtins from "./builtins";
 import { heap_add_root, heap_get_child, heap_initialise, heap_tag_get_n_children, heap_tag_get_type, heap_temp_node_stash, heap_temp_node_unstash } from "./heap";
 import Instruction from "./types/Instruction";
 import Opcode from "./types/Opcode";
 import { Boolean_False, Boolean_alloc, is_Boolean, is_False, is_True } from "./vmtypes/Boolean";
+import { Builtin_alloc, Builtin_get, is_Builtin } from "./vmtypes/Builtin";
+import { Channel_try_recv, Channel_try_send } from "./vmtypes/Channel";
 import { Closure_alloc, Closure_get_env, Closure_get_jump_addr, is_Closure } from "./vmtypes/Closure";
 import { Frame_alloc, Frame_assign, Frame_get_par, Frame_retrieve } from "./vmtypes/Frame";
-import { Goroutine_alloc, Goroutine_get_env, Goroutine_get_pc, Goroutine_inc_pc, Goroutine_is_running, Goroutine_pop_os, Goroutine_pop_rts, Goroutine_push_os, Goroutine_push_rts, Goroutine_set_env, Goroutine_set_pc } from "./vmtypes/Goroutine";
+import { Goroutine_alloc, Goroutine_get_env, Goroutine_get_pc, Goroutine_inc_pc, Goroutine_is_alive, Goroutine_is_running, Goroutine_kill, Goroutine_pop_os, Goroutine_pop_rts, Goroutine_push_os, Goroutine_push_rts, Goroutine_set_env, Goroutine_set_pc } from "./vmtypes/Goroutine";
 import { Number_alloc, Number_get, is_Number } from "./vmtypes/Number";
 import { Reference_alloc, Reference_get, Reference_set, is_Reference } from "./vmtypes/Reference";
 import { Stack_alloc, Stack_find, Stack_is_empty, Stack_pop, Stack_push } from "./vmtypes/Stack";
@@ -34,10 +37,6 @@ const unop_microcode = new Map([
     }],
     [Opcode.REF, (data: number) => {
         throw Error("REF: unimplemented");
-        return -1;
-    }],
-    [Opcode.RECV, (data: number) => {
-        throw Error("RECV: unimplemented");
         return -1;
     }],
 ]);
@@ -195,6 +194,11 @@ function binop_microcode_wrapper(opcode: Opcode): [Opcode, (gor: number, instr: 
     ];
 }
 
+const builtin_arg_arr: number[] = [];
+const MAX_BUILTIN_ARGS = 8;
+for (let i = 0; i < MAX_BUILTIN_ARGS; ++i) {
+    builtin_arg_arr.push(-1);
+}
 const microcode = new Map([
     ///// Frames
     [Opcode.ENTER_BLOCK, (gor: number, instr: Instruction) => {
@@ -228,7 +232,6 @@ const microcode = new Map([
     unop_microcode_wrapper(Opcode.BITWISE_NOT),
     unop_microcode_wrapper(Opcode.DEREF),
     unop_microcode_wrapper(Opcode.REF),
-    unop_microcode_wrapper(Opcode.RECV),
     // Binary operators
     binop_microcode_wrapper(Opcode.MULT),
     binop_microcode_wrapper(Opcode.DIV),
@@ -309,27 +312,65 @@ const microcode = new Map([
     }],
     [Opcode.JOF, (gor: number, instr: Instruction) => {
         const cond = Reference_get(Goroutine_pop_os(gor));
-        if (is_False(cond)){
+        if (is_False(cond)) {
             const offset = instr.args[0] as number;
             const pc = Number_get(Goroutine_get_pc(gor));
             const new_pc = Number_alloc(pc + offset);
             Goroutine_set_pc(gor, new_pc);
         }
     }],
-    [Opcode.CALL, (gor: number, instr: Instruction) => { // TODO: handle builtins
-        const num_params = instr.args[0] as number; // unused, except for builtins
+    [Opcode.CALL, (gor: number, instr: Instruction) => {
+        const builtin_or_closure = Reference_get(Goroutine_pop_os(gor));
+        if (is_Builtin(builtin_or_closure)) {
+            const num_args = instr.args[0] as number;
+            if (num_args > MAX_BUILTIN_ARGS) throw Error("too many arguments to builtin");
+            for (let i = num_args - 1; i >= 0; --i) {
+                builtin_arg_arr[i] = Goroutine_pop_os(gor);
+            }
+            builtins[Builtin_get(builtin_or_closure)][1](gor, num_args, builtin_arg_arr);
+            return;
+        }
         const return_closure = Closure_alloc(Number_get(Goroutine_get_pc(gor)), Goroutine_get_env(gor));
         heap_temp_node_stash(return_closure);
         Goroutine_push_rts(gor, return_closure);
         heap_temp_node_unstash(); // return_closure
-        const closure = Reference_get(Goroutine_pop_os(gor));
-        Goroutine_set_pc(gor, Closure_get_jump_addr(closure));
-        Goroutine_set_env(gor, Closure_get_env(closure));
+        Goroutine_set_pc(gor, Closure_get_jump_addr(builtin_or_closure));
+        Goroutine_set_env(gor, Closure_get_env(builtin_or_closure));
     }],
     [Opcode.RETURN, (gor: number, instr: Instruction) => {
         const return_closure = Goroutine_pop_rts(gor);
         Goroutine_set_pc(gor, Closure_get_jump_addr(return_closure));
         Goroutine_set_env(gor, Closure_get_env(return_closure));
+    }],
+    [Opcode.DONE, (gor: number, instr: Instruction) => {
+        Goroutine_kill(gor);
+    }],
+
+    ///// Concurrency control
+    [Opcode.GO, (gor: number, instr: Instruction) => {
+        const offset = instr.args[0] as number;
+        const pc = Number_get(Goroutine_get_pc(gor));
+        const new_gor = Goroutine_alloc(pc, Goroutine_get_env(gor));
+        heap_temp_node_stash(new_gor);
+        Stack_push(goroutines, new_gor);
+        heap_temp_node_unstash(); // new_gor
+        const new_pc = Number_alloc(pc + offset);
+        Goroutine_set_pc(gor, new_pc);
+    }],
+    [Opcode.SEND, (gor: number, instr: Instruction) => {
+        const val = Goroutine_pop_os(gor);
+        const chan = Reference_get(Goroutine_pop_os(gor));
+        heap_temp_node_stash(val);
+        heap_temp_node_stash(chan);
+        Channel_try_send(chan, gor, val);
+        heap_temp_node_unstash(); // chan
+        heap_temp_node_unstash(); // val
+    }],
+    [Opcode.RECV, (gor: number, instr: Instruction) => {
+        const chan = Reference_get(Goroutine_pop_os(gor));
+        heap_temp_node_stash(chan);
+        Channel_try_recv(chan, gor);
+        heap_temp_node_unstash(); //
     }],
 ]);
 
@@ -345,21 +386,31 @@ function debug_show_object(obj: number): any[] {
         res.push("(Closure)", "addr", Number_get(Closure_get_jump_addr(obj)), "env", Closure_get_env(obj));
     } else if (is_Reference(obj)) {
         res.push("(Reference) ->", Reference_get(obj), ...debug_show_object(Reference_get(obj)));
+    } else if (is_Builtin(obj)) {
+        res.push("(Builtin)", "id", Builtin_get(obj), builtins[Builtin_get(obj)][0]);
     } else {
         res.push("((" + VMType[heap_tag_get_type(obj)] + "))");
     }
     return res;
 }
 
+let goroutines: number;
 export function run(instrs: Instruction[]) {
-    const gors = Stack_alloc();
-    heap_add_root(gors);
-    const main_gor = Goroutine_alloc(0);
+    goroutines = Stack_alloc();
+    heap_add_root(goroutines);
+    const main_env = Frame_alloc(builtins.length, -1);
+    heap_temp_node_stash(main_env);
+    for (let i = 0; i < builtins.length; ++i) {
+        const builtin = Builtin_alloc(i);
+        Frame_assign(main_env, 0, i, builtin);
+    }
+    const main_gor = Goroutine_alloc(0, main_env);
     heap_temp_node_stash(main_gor);
-    Stack_push(gors, main_gor);
+    Stack_push(goroutines, main_gor);
+    heap_temp_node_unstash(); // main_env
     heap_temp_node_unstash(); // main_gor
-    while (instrs[Number_get(Goroutine_get_pc(main_gor))].opcode !== Opcode.DONE) {
-        const running_gor = Stack_find(gors, Goroutine_is_running);
+    while (Goroutine_is_alive(main_gor)) {
+        const running_gor = Stack_find(goroutines, Goroutine_is_running);
         if (running_gor === -1) {
             throw Error("all goroutines are asleep!");
         }
