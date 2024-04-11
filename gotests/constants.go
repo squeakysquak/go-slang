@@ -61,7 +61,7 @@ func main() {
         c = 5
     }
 
-    return c
+    //return c
     */
     var x1 = 1
     var x2 = 1
@@ -69,5 +69,12 @@ func main() {
         x1 = x1 + 1
         x2 = x2 + 2
     }
-    return x2
+    x2 //9
+    
+    sum := 0
+	for x := 1 ; x <= 10; x = x + 1 {
+		sum = sum + 2
+	}
+    return sum
+    
 }
