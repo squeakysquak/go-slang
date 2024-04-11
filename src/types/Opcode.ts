@@ -50,6 +50,8 @@ export enum Opcode {
     RETURN = "RETURN", // RETURN ; jumps to caller
     BREAK = "BREAK", // BREAK ; skips instructions until BREAK_END is encountered.
     BREAK_END = "BREAK_END", // BREAK_END ; marker for BREAK instruction
+    CONT = "CONT", // CONT ; continue instruction, skips block until CONT_END is encountered (after block and before jump back instr of loop)
+    CONT_END = "CONT_END", // CONT_END ; marker for CONT instruction
     DONE = "DONE", // DONE ; terminates the program
 
     ///// Concurrency control

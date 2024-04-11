@@ -393,6 +393,9 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
         //Body of for loop
         res.push(this.visit(ctx.block()));
 
+        //Marker for continue, skips block but not post-stmt and jump back.
+        res.push(new Instruction(Opcode.CONT_END));
+
         //Post-statement of for clause (if any)
         if (ctx.forClause()){
             res.push(this.visit(ctx.forClause()?._postStmt as SimpleStmtContext));
@@ -404,6 +407,7 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
         //JOF instruction at the start will jump all the way to the end if the condition is no longer true.
         first_jof_instr.args[0] = res.size - jof_index; 
 
+        //Marker for break, skips everything
         res.push(new Instruction(Opcode.BREAK_END));
 
         return res;
@@ -415,6 +419,7 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
     }
     visitContinueStmt?(ctx: ContinueStmtContext){
         const res = new InstructionTree();
+        res.push(new Instruction(Opcode.CONT));
         return res;
     }
 

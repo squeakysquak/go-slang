@@ -362,6 +362,24 @@ const microcode = new Map([
     [Opcode.BREAK_END, (gor: number, instr: Instruction) => {
         //do nothing
     }],
+    [Opcode.CONT, (gor: number, instr: Instruction) => {
+        const pc = Number_get(Goroutine_get_pc(gor));
+
+        let i = 0
+        while(instr_list[pc + i].opcode != Opcode.CONT_END){
+            //Check for exit block instrs and handle appropriately to prevent heap from exploding
+            if (instr_list[pc + i].opcode == Opcode.EXIT_BLOCK){
+                const env = Goroutine_get_env(gor);
+                Goroutine_set_env(gor, Frame_get_par(env));
+            }
+            i++;
+        }
+        const alloc_pc = Number_alloc(pc + i);
+        Goroutine_set_pc(gor, alloc_pc);
+    }],
+    [Opcode.CONT_END, (gor: number, instr: Instruction) => {
+        //do nothing
+    }],
     [Opcode.DONE, (gor: number, instr: Instruction) => {
         Goroutine_kill(gor);
     }],
