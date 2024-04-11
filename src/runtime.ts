@@ -342,6 +342,26 @@ const microcode = new Map([
         Goroutine_set_pc(gor, Closure_get_jump_addr(return_closure));
         Goroutine_set_env(gor, Closure_get_env(return_closure));
     }],
+    [Opcode.BREAK, (gor: number, instr: Instruction) => {
+        const pc = Number_get(Goroutine_get_pc(gor));
+        //console.log("BREAK MICROCODE SAYS:", pc);
+
+        let i = 0
+        while(instr_list[pc + i].opcode != Opcode.BREAK_END){
+            //Check for exit block instrs and handle appropriately to prevent heap from exploding
+            if (instr_list[pc + i].opcode == Opcode.EXIT_BLOCK){
+                const env = Goroutine_get_env(gor);
+                Goroutine_set_env(gor, Frame_get_par(env));
+            }
+            i++;
+        }
+        const alloc_pc = Number_alloc(pc + i);
+        Goroutine_set_pc(gor, alloc_pc);
+        //console.log("BREAK MICROCODE FINISHED LOOP:", alloc_pc);
+    }],
+    [Opcode.BREAK_END, (gor: number, instr: Instruction) => {
+        //do nothing
+    }],
     [Opcode.DONE, (gor: number, instr: Instruction) => {
         Goroutine_kill(gor);
     }],
@@ -395,8 +415,10 @@ function debug_show_object(obj: number): any[] {
 }
 
 let goroutines: number;
+let instr_list: Instruction[];
 export function run(instrs: Instruction[]) {
     goroutines = Stack_alloc();
+    instr_list = instrs;
     heap_add_root(goroutines);
     const main_env = Frame_alloc(builtins.length, -1);
     heap_temp_node_stash(main_env);

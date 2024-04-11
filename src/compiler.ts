@@ -1,5 +1,5 @@
 import { CharStreams, CommonTokenStream } from "antlr4ts";
-import { AssignmentContext, BasicLitContext, BlockContext, ConstSpecContext, ExpressionContext, ExpressionStmtContext, ForClauseContext, ForStmtContext, FunctionDeclContext, GoParser, GoStmtContext, IfStmtContext, IntegerContext, OperandNameContext, ParameterDeclContext, PrimaryExprContext, ReturnStmtContext, SendStmtContext, ShortVarDeclContext, SimpleStmtContext, SourceFileContext, VarSpecContext } from "./GoParser";
+import { AssignmentContext, BasicLitContext, BlockContext, BreakStmtContext, ConstSpecContext, ContinueStmtContext, ExpressionContext, ExpressionStmtContext, ForClauseContext, ForStmtContext, FunctionDeclContext, GoParser, GoStmtContext, IfStmtContext, IntegerContext, OperandNameContext, ParameterDeclContext, PrimaryExprContext, ReturnStmtContext, SendStmtContext, ShortVarDeclContext, SimpleStmtContext, SourceFileContext, VarSpecContext } from "./GoParser";
 import { GoLexer } from "./GoLexer";
 import Instruction from "./types/Instruction";
 import Opcode from "./types/Opcode";
@@ -404,6 +404,17 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
         //JOF instruction at the start will jump all the way to the end if the condition is no longer true.
         first_jof_instr.args[0] = res.size - jof_index; 
 
+        res.push(new Instruction(Opcode.BREAK_END));
+
+        return res;
+    }
+    visitBreakStmt?(ctx: BreakStmtContext){
+        const res = new InstructionTree();
+        res.push(new Instruction(Opcode.BREAK));
+        return res;
+    }
+    visitContinueStmt?(ctx: ContinueStmtContext){
+        const res = new InstructionTree();
         return res;
     }
 

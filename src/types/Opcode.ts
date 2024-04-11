@@ -48,6 +48,8 @@ export enum Opcode {
     JOF = "JOF", // JOF offset ; jump to relative address if OS.pop() === false.
     CALL = "CALL", // CALL numParams ; OS: parameters left to right, then function pointer; the callee is responsible for removing arguments from the OS, except for builtins
     RETURN = "RETURN", // RETURN ; jumps to caller
+    BREAK = "BREAK", // BREAK ; skips instructions until BREAK_END is encountered.
+    BREAK_END = "BREAK_END", // BREAK_END ; marker for BREAK instruction
     DONE = "DONE", // DONE ; terminates the program
 
     ///// Concurrency control

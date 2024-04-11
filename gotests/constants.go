@@ -62,7 +62,7 @@ func main() {
     }
 
     //return c
-    */
+    
     var x1 = 1
     var x2 = 1
     for (x1 < 5){
@@ -70,10 +70,13 @@ func main() {
         x2 = x2 + 2
     }
     x2 //9
-    
+    */
     sum := 0
-	for x := 1 ; x <= 10; x = x + 1 {
+	for x := 1 ; x <= 5; x = x + 1 {
 		sum = sum + 2
+        if (x == 3){
+            break
+        }
 	}
     return sum
     
