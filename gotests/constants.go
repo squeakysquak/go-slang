@@ -1,15 +1,15 @@
 package main
 
 import "fmt"
-/**/
+/*
 func add(x int, y int) int {
     x = x + 2
     x = x - 2 
     return x + y
 }
-
+*/
 func main() {
-    /*    */
+    /*    
     var reassignTest int = 10
     reassignTest = 3 * (2 + 2) / 2 - 5 // ans: 1
 
@@ -62,5 +62,12 @@ func main() {
     }
 
     return c
-    
+    */
+    var x1 = 1
+    var x2 = 1
+    for (x1 < 5){
+        x1 = x1 + 1
+        x2 = x2 + 2
+    }
+    return x2
 }

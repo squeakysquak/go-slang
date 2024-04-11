@@ -1,5 +1,5 @@
 import { CharStreams, CommonTokenStream } from "antlr4ts";
-import { AssignmentContext, BasicLitContext, BlockContext, ConstSpecContext, ExpressionContext, ExpressionStmtContext, FunctionDeclContext, GoParser, GoStmtContext, IfStmtContext, IntegerContext, OperandNameContext, ParameterDeclContext, PrimaryExprContext, ReturnStmtContext, SendStmtContext, ShortVarDeclContext, SourceFileContext, VarSpecContext } from "./GoParser";
+import { AssignmentContext, BasicLitContext, BlockContext, ConstSpecContext, ExpressionContext, ExpressionStmtContext, ForStmtContext, FunctionDeclContext, GoParser, GoStmtContext, IfStmtContext, IntegerContext, OperandNameContext, ParameterDeclContext, PrimaryExprContext, ReturnStmtContext, SendStmtContext, ShortVarDeclContext, SourceFileContext, VarSpecContext } from "./GoParser";
 import { GoLexer } from "./GoLexer";
 import Instruction from "./types/Instruction";
 import Opcode from "./types/Opcode";
@@ -363,6 +363,35 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
         }
 
         jump_instr.args[0] = res.size - len;
+
+        return res;
+    }
+    visitForStmt?(ctx: ForStmtContext) { 
+        const res = new InstructionTree();
+        console.log("FOR STMT: ", ctx.expression()?.text);
+
+        // Condition
+        if (ctx.expression()){
+            res.push(this.visit(ctx.expression() as ExpressionContext));
+        }else if (ctx.forClause()){
+
+        }else if (ctx.rangeClause()){
+
+        }
+
+        //First JOF instruction which jumps to end if loop should end.
+        const first_jof_instr = new Instruction(Opcode.JOF);
+        res.push(first_jof_instr);
+        let len = res.size
+
+        //Body of for loop
+        res.push(this.visit(ctx.block()));
+
+        //Jump back to start and check if the condition is true again.
+        res.push(new Instruction(Opcode.JUMP, [-(res.size + 1)]))
+
+        //JOF instruction at the start will jump all the way to the end if the condition is no longer true.
+        first_jof_instr.args[0] = res.size - len; 
 
         return res;
     }
