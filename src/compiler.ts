@@ -119,11 +119,15 @@ class ParameterDeclVisitor extends AbstractParseTreeVisitor<string[]> implements
 class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements GoParserVisitor<InstructionTree> {
     Instrs: Instruction[];
     currentFrame: CompileFrame;
+    loopDepth: number;
+    funcLoopDepth: number;
 
     constructor() {
         super();
         this.Instrs = [];
         this.currentFrame = new CompileFrame(builtinFrame);
+        this.loopDepth = 0;
+        this.funcLoopDepth = 0;
     }
 
     //// Utility functions
@@ -196,6 +200,8 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
         }
         const block = ctx.block();
         if (!block) throw Error("");
+        const oldFuncLoopDepth = this.funcLoopDepth;
+        this.funcLoopDepth = this.loopDepth;
         const res = new InstructionTree();
         this.enterFrame();
         const enterBlockInstr = new Instruction(Opcode.ENTER_BLOCK);
@@ -217,9 +223,10 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
         res.push(this.visitChildren(block));
         const frameSize = this.currentFrame.numSym;
         enterBlockInstr.args.push(frameSize);
-        res.push(new Instruction(Opcode.RETURN)); // if function hasn't returned yet, it should return now
+        res.push(new Instruction(Opcode.RETURN, [this.loopDepth - this.funcLoopDepth])); // if function hasn't returned yet, it should return now
         res.push(new Instruction(Opcode.EXIT_BLOCK));
         this.exitFrame(); // parameter frame
+        this.funcLoopDepth = oldFuncLoopDepth;
         return new InstructionTree([
             new Instruction(Opcode.JUMP, [res.size]),
             res,
@@ -319,7 +326,7 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
     ///// Control Flow
     visitReturnStmt?(ctx: ReturnStmtContext) {
         const res = this.visitChildren(ctx);
-        res.push(new Instruction(Opcode.RETURN));
+        res.push(new Instruction(Opcode.RETURN, [this.loopDepth - this.funcLoopDepth]));
         return res;
     }
     visitPrimaryExpr?(ctx: PrimaryExprContext) {
@@ -366,22 +373,32 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
 
         return res;
     }
-    visitForStmt?(ctx: ForStmtContext) { 
+    visitForStmt?(ctx: ForStmtContext) {
         const res = new InstructionTree();
         console.log("FOR STMT: ", ctx.forClause()?.text);
 
-        let cond_index = 0;
+        this.loopDepth += 1;
+
+        this.enterFrame(); // decl in the for init clause should be in a new block
+        const enterBlockInstr = new Instruction(Opcode.ENTER_BLOCK);
+        res.push(enterBlockInstr);
+
+        const loop_instr = new Instruction(Opcode.INIT_LOOP);
+        res.push(loop_instr);
+        const loop_index = res.size;
+
+        let cond_index = res.size;
         // Condition
-        if (ctx.expression()){
+        if (ctx.expression()) {
             res.push(this.visit(ctx.expression() as ExpressionContext));
-        }else if (ctx.forClause()){
+        } else if (ctx.forClause()) {
             //Initialisation statement
             res.push(this.visit(ctx.forClause()?._initStmt as SimpleStmtContext));
-            cond_index += res.size;
+            cond_index = res.size;
 
             //This is the actual condition
             res.push(this.visit(ctx.forClause()?.expression() as ExpressionContext));
-        }else if (ctx.rangeClause()){
+        } else if (ctx.rangeClause()) {
             throw Error("range/arrays not implemented");
         }
 
@@ -391,13 +408,12 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
         let jof_index = res.size
 
         //Body of for loop
-        res.push(this.visit(ctx.block()));
+        res.push(this.visitChildren(ctx.block())); // omitting begin and end block instructions
 
-        //Marker for continue, skips block but not post-stmt and jump back.
-        res.push(new Instruction(Opcode.CONT_END));
+        loop_instr.args.push(res.size - loop_index); // jump here on CONTINUE
 
         //Post-statement of for clause (if any)
-        if (ctx.forClause()){
+        if (ctx.forClause()) {
             res.push(this.visit(ctx.forClause()?._postStmt as SimpleStmtContext));
         }
 
@@ -405,19 +421,27 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
         res.push(new Instruction(Opcode.JUMP, [-(res.size + 1 - cond_index)]))
 
         //JOF instruction at the start will jump all the way to the end if the condition is no longer true.
-        first_jof_instr.args[0] = res.size - jof_index; 
+        first_jof_instr.args[0] = res.size - jof_index;
 
-        //Marker for break, skips everything
-        res.push(new Instruction(Opcode.BREAK_END));
+        res.push(new Instruction(Opcode.EXIT_LOOP));
+
+        loop_instr.args.push(res.size - loop_index); // jump here on BREAK; RTS will be cleaned up by BREAK
+
+        const frameSize = this.currentFrame.numSym;
+        enterBlockInstr.args.push(frameSize);
+        res.push(new Instruction(Opcode.EXIT_BLOCK));
+        this.exitFrame();
+
+        this.loopDepth -= 1;
 
         return res;
     }
-    visitBreakStmt?(ctx: BreakStmtContext){
+    visitBreakStmt?(ctx: BreakStmtContext) {
         const res = new InstructionTree();
         res.push(new Instruction(Opcode.BREAK));
         return res;
     }
-    visitContinueStmt?(ctx: ContinueStmtContext){
+    visitContinueStmt?(ctx: ContinueStmtContext) {
         const res = new InstructionTree();
         res.push(new Instruction(Opcode.CONT));
         return res;

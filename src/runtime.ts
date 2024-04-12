@@ -338,47 +338,41 @@ const microcode = new Map([
         Goroutine_set_env(gor, Closure_get_env(builtin_or_closure));
     }],
     [Opcode.RETURN, (gor: number, instr: Instruction) => {
+        const loop_depth = instr.args[0] as number;
+        for (let i = 0; i < loop_depth; ++i) {
+            Goroutine_pop_rts(gor); // continue_closure
+            Goroutine_pop_rts(gor); // break_closure
+        }
         const return_closure = Goroutine_pop_rts(gor);
         Goroutine_set_pc(gor, Closure_get_jump_addr(return_closure));
         Goroutine_set_env(gor, Closure_get_env(return_closure));
     }],
-    [Opcode.BREAK, (gor: number, instr: Instruction) => {
-        const pc = Number_get(Goroutine_get_pc(gor));
-        //console.log("BREAK MICROCODE SAYS:", pc);
-
-        let i = 0
-        while(instr_list[pc + i].opcode != Opcode.BREAK_END){
-            //Check for exit block instrs and handle appropriately to prevent heap from exploding
-            if (instr_list[pc + i].opcode == Opcode.EXIT_BLOCK){
-                const env = Goroutine_get_env(gor);
-                Goroutine_set_env(gor, Frame_get_par(env));
-            }
-            i++;
-        }
-        const alloc_pc = Number_alloc(pc + i);
-        Goroutine_set_pc(gor, alloc_pc);
-        //console.log("BREAK MICROCODE FINISHED LOOP:", alloc_pc);
+    [Opcode.INIT_LOOP, (gor: number, instr: Instruction) => {
+        const [continue_offset, break_offset] = instr.args as [number, number];
+        const continue_closure = Closure_alloc(Number_get(Goroutine_get_pc(gor)) + continue_offset, Goroutine_get_env(gor));
+        heap_temp_node_stash(continue_closure);
+        const break_closure = Closure_alloc(Number_get(Goroutine_get_pc(gor)) + break_offset, Goroutine_get_env(gor));
+        heap_temp_node_stash(break_closure);
+        Goroutine_push_rts(gor, break_closure);
+        Goroutine_push_rts(gor, continue_closure);
+        heap_temp_node_unstash(); // break_closure
+        heap_temp_node_unstash(); // continue_closure
     }],
-    [Opcode.BREAK_END, (gor: number, instr: Instruction) => {
-        //do nothing
+    [Opcode.EXIT_LOOP, (gor: number, instr: Instruction) => {
+        Goroutine_pop_rts(gor); // continue_closure
+        Goroutine_pop_rts(gor); // break_closure
+    }],
+    [Opcode.BREAK, (gor: number, instr: Instruction) => {
+        Goroutine_pop_rts(gor); // continue_closure
+        const break_closure = Goroutine_pop_rts(gor);
+        Goroutine_set_pc(gor, Closure_get_jump_addr(break_closure));
+        Goroutine_set_env(gor, Closure_get_env(break_closure));
     }],
     [Opcode.CONT, (gor: number, instr: Instruction) => {
-        const pc = Number_get(Goroutine_get_pc(gor));
-
-        let i = 0
-        while(instr_list[pc + i].opcode != Opcode.CONT_END){
-            //Check for exit block instrs and handle appropriately to prevent heap from exploding
-            if (instr_list[pc + i].opcode == Opcode.EXIT_BLOCK){
-                const env = Goroutine_get_env(gor);
-                Goroutine_set_env(gor, Frame_get_par(env));
-            }
-            i++;
-        }
-        const alloc_pc = Number_alloc(pc + i);
-        Goroutine_set_pc(gor, alloc_pc);
-    }],
-    [Opcode.CONT_END, (gor: number, instr: Instruction) => {
-        //do nothing
+        const continue_closure = Goroutine_pop_rts(gor); // continue_closure
+        Goroutine_push_rts(gor, continue_closure); // put it back on the rts, don't actually want to remove it
+        Goroutine_set_pc(gor, Closure_get_jump_addr(continue_closure));
+        Goroutine_set_env(gor, Closure_get_env(continue_closure));
     }],
     [Opcode.DONE, (gor: number, instr: Instruction) => {
         Goroutine_kill(gor);
