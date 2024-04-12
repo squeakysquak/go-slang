@@ -60,7 +60,30 @@ func main() {
     if(false){
         c = 5
     }
+    
+    var x1 = 1
+    var x2 = 1
+    for (x1 < 5){
+        x1 = x1 + 1
+        x2 = x2 + 2
+    }
+    
+    sum := 0
+	for loopy := 1 ; loopy <= 5; loopy = loopy + 1 {
+		sum = sum + 2
+        if (loopy == 3){
+            break
+        }
+	}
+    
+    sum2 := 0
+    for loopyy := 1 ; loopyy <= 5; loopyy = loopyy + 1 {
+        if (loopyy < 3) {
+            continue
+        }
+        sum2 = sum2 + 1
+    }
 
-    return c
+    return sum2
     
 }

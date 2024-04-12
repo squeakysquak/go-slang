@@ -338,9 +338,41 @@ const microcode = new Map([
         Goroutine_set_env(gor, Closure_get_env(builtin_or_closure));
     }],
     [Opcode.RETURN, (gor: number, instr: Instruction) => {
+        const loop_depth = instr.args[0] as number;
+        for (let i = 0; i < loop_depth; ++i) {
+            Goroutine_pop_rts(gor); // continue_closure
+            Goroutine_pop_rts(gor); // break_closure
+        }
         const return_closure = Goroutine_pop_rts(gor);
         Goroutine_set_pc(gor, Closure_get_jump_addr(return_closure));
         Goroutine_set_env(gor, Closure_get_env(return_closure));
+    }],
+    [Opcode.INIT_LOOP, (gor: number, instr: Instruction) => {
+        const [continue_offset, break_offset] = instr.args as [number, number];
+        const continue_closure = Closure_alloc(Number_get(Goroutine_get_pc(gor)) + continue_offset, Goroutine_get_env(gor));
+        heap_temp_node_stash(continue_closure);
+        const break_closure = Closure_alloc(Number_get(Goroutine_get_pc(gor)) + break_offset, Goroutine_get_env(gor));
+        heap_temp_node_stash(break_closure);
+        Goroutine_push_rts(gor, break_closure);
+        Goroutine_push_rts(gor, continue_closure);
+        heap_temp_node_unstash(); // break_closure
+        heap_temp_node_unstash(); // continue_closure
+    }],
+    [Opcode.EXIT_LOOP, (gor: number, instr: Instruction) => {
+        Goroutine_pop_rts(gor); // continue_closure
+        Goroutine_pop_rts(gor); // break_closure
+    }],
+    [Opcode.BREAK, (gor: number, instr: Instruction) => {
+        Goroutine_pop_rts(gor); // continue_closure
+        const break_closure = Goroutine_pop_rts(gor);
+        Goroutine_set_pc(gor, Closure_get_jump_addr(break_closure));
+        Goroutine_set_env(gor, Closure_get_env(break_closure));
+    }],
+    [Opcode.CONT, (gor: number, instr: Instruction) => {
+        const continue_closure = Goroutine_pop_rts(gor); // continue_closure
+        Goroutine_push_rts(gor, continue_closure); // put it back on the rts, don't actually want to remove it
+        Goroutine_set_pc(gor, Closure_get_jump_addr(continue_closure));
+        Goroutine_set_env(gor, Closure_get_env(continue_closure));
     }],
     [Opcode.DONE, (gor: number, instr: Instruction) => {
         Goroutine_kill(gor);
@@ -395,8 +427,10 @@ function debug_show_object(obj: number): any[] {
 }
 
 let goroutines: number;
+let instr_list: Instruction[];
 export function run(instrs: Instruction[]) {
     goroutines = Stack_alloc();
+    instr_list = instrs;
     heap_add_root(goroutines);
     const main_env = Frame_alloc(builtins.length, -1);
     heap_temp_node_stash(main_env);
