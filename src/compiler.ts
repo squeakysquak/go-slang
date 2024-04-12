@@ -326,7 +326,14 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
     ///// Control Flow
     visitReturnStmt?(ctx: ReturnStmtContext) {
         const res = this.visitChildren(ctx);
-        res.push(new Instruction(Opcode.RETURN, [this.loopDepth - this.funcLoopDepth]));
+        const last = res.size > 0 ? res.at(res.size - 1) : null;
+        if (last?.opcode === Opcode.CALL) {
+            // turn CALL x; RETURN y; into TAILCALL x y;
+            last.opcode = Opcode.TAILCALL;
+            last.args.push(this.loopDepth - this.funcLoopDepth);
+        } else {
+            res.push(new Instruction(Opcode.RETURN, [this.loopDepth - this.funcLoopDepth]));
+        }
         return res;
     }
     visitPrimaryExpr?(ctx: PrimaryExprContext) {
