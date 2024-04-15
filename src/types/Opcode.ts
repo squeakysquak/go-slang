@@ -47,6 +47,7 @@ export enum Opcode {
     JUMP = "JUMP", // JUMP offset ; jump to relative address
     JOF = "JOF", // JOF offset ; jump to relative address if OS.pop() === false.
     CALL = "CALL", // CALL numParams ; OS: parameters left to right, then function pointer; the callee is responsible for removing arguments from the OS, except for builtins
+    TAILCALL = "TAILCALL", // TAILCALL numParams depth ; discard depth items from the rts first, then same as CALL, but doesn't push a closure onto RTS
     RETURN = "RETURN", // RETURN depth ; jumps to caller, discarding depth items from the rts first (from loops)
     INIT_LOOP = "INIT_LOOP", // INIT_LOOP cont break ; adds the loop's closures to the rts - cont and break are instruction offsets to where to jump to
     EXIT_LOOP = "EXIT_LOOP", // EXIT_LOOP ; cleans up the rts from INIT_LOOP's additions

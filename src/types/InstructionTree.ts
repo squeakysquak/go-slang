@@ -28,6 +28,23 @@ export class InstructionTree {
             this.size += piece.size;
         }
     }
+    at(idx: number): Instruction {
+        let num = 0;
+        for (let i = 0; i < this.contents.length; ++i) {
+            const piece = this.contents[i];
+            if (piece instanceof Instruction) {
+                if (num == idx) return piece;
+                ++num;
+            } else {
+                const next = num + piece.size;
+                if (next > idx) {
+                    return piece.at(idx - num);
+                }
+                num = next;
+            }
+        }
+        throw Error("invalid index");
+    }
     private collect(instrs: Instruction[]) {
         for (let i = 0; i < this.contents.length; ++i) {
             const piece = this.contents[i];

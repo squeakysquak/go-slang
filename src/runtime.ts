@@ -337,6 +337,30 @@ const microcode = new Map([
         Goroutine_set_pc(gor, Closure_get_jump_addr(builtin_or_closure));
         Goroutine_set_env(gor, Closure_get_env(builtin_or_closure));
     }],
+    [Opcode.TAILCALL, (gor: number, instr: Instruction) => {
+        const [num_args, loop_depth] = instr.args as [number, number];
+        for (let i = 0; i < loop_depth; ++i) {
+            Goroutine_pop_rts(gor); // continue_closure
+            Goroutine_pop_rts(gor); // break_closure
+        }
+        const builtin_or_closure = Reference_get(Goroutine_pop_os(gor));
+        if (is_Builtin(builtin_or_closure)) { // regular builtin call, but return out after
+            const num_args = instr.args[0] as number;
+            if (num_args > MAX_BUILTIN_ARGS) throw Error("too many arguments to builtin");
+            for (let i = num_args - 1; i >= 0; --i) {
+                builtin_arg_arr[i] = Goroutine_pop_os(gor);
+            }
+            builtins[Builtin_get(builtin_or_closure)][1](gor, num_args, builtin_arg_arr);
+            // i'm expected to return out of the function here
+            const return_closure = Goroutine_pop_rts(gor);
+            Goroutine_set_pc(gor, Closure_get_jump_addr(return_closure));
+            Goroutine_set_env(gor, Closure_get_env(return_closure));
+            return;
+        }
+        // don't push a return closure for tail calls, just jump
+        Goroutine_set_pc(gor, Closure_get_jump_addr(builtin_or_closure));
+        Goroutine_set_env(gor, Closure_get_env(builtin_or_closure));
+    }],
     [Opcode.RETURN, (gor: number, instr: Instruction) => {
         const loop_depth = instr.args[0] as number;
         for (let i = 0; i < loop_depth; ++i) {
