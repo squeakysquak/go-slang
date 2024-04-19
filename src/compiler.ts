@@ -1,5 +1,5 @@
 import { CharStreams, CommonTokenStream } from "antlr4ts";
-import { AssignmentContext, BasicLitContext, BlockContext, BreakStmtContext, ConstSpecContext, ContinueStmtContext, ExpressionContext, ExpressionStmtContext, ForClauseContext, ForStmtContext, FunctionDeclContext, GoParser, GoStmtContext, IfStmtContext, IntegerContext, OperandNameContext, ParameterDeclContext, PrimaryExprContext, ReturnStmtContext, SendStmtContext, ShortVarDeclContext, SimpleStmtContext, SourceFileContext, VarSpecContext } from "./GoParser";
+import { AssignmentContext, BasicLitContext, BlockContext, BreakStmtContext, ConstSpecContext, ContinueStmtContext, ExpressionContext, ExpressionStmtContext, ForClauseContext, ForStmtContext, FunctionDeclContext, FunctionLitContext, GoParser, GoStmtContext, IfStmtContext, IntegerContext, OperandNameContext, ParameterDeclContext, PrimaryExprContext, ReturnStmtContext, SendStmtContext, ShortVarDeclContext, SimpleStmtContext, SourceFileContext, VarSpecContext } from "./GoParser";
 import { GoLexer } from "./GoLexer";
 import Instruction from "./types/Instruction";
 import Opcode from "./types/Opcode";
@@ -310,7 +310,6 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
         }
     }
     visitOperandName?(ctx: OperandNameContext) {
-        this.visitChildren(ctx);
         const sym = ctx.IDENTIFIER().text;
         if (sym === "true" || sym === "false") {
             return new InstructionTree([
@@ -320,6 +319,42 @@ class GoCompiler extends AbstractParseTreeVisitor<InstructionTree> implements Go
         if (!this.currentFrame.hasRec(sym)) throw Error("unknown symbol '" + sym + "'");
         return new InstructionTree([
             new Instruction(Opcode.LD, this.currentFrame.indexRec(sym))
+        ]);
+    }
+    visitFunctionLit?(ctx: FunctionLitContext) {
+        const block = ctx.block();
+        if (!block) throw Error("");
+        const oldFuncLoopDepth = this.funcLoopDepth;
+        this.funcLoopDepth = this.loopDepth;
+        const res = new InstructionTree();
+        this.enterFrame();
+        const enterBlockInstr = new Instruction(Opcode.ENTER_BLOCK);
+        res.push(enterBlockInstr)
+        const params = (new ParameterDeclVisitor()).visit(ctx.signature().parameters());
+        for (let i = params.length - 1; i >= 0; --i) {
+            let idx;
+            if (params[i]) {
+                try {
+                    idx = this.currentFrame.addSymbol(params[i]);
+                } catch (e) {
+                    throw Error("redefining '" + params[i] + "'");
+                }
+            } else {
+                idx = this.currentFrame.addDummy();
+            }
+            res.push(new Instruction(Opcode.ASSIGN, [0, idx]));
+        }
+        res.push(this.visitChildren(block));
+        const frameSize = this.currentFrame.numSym;
+        enterBlockInstr.args.push(frameSize);
+        res.push(new Instruction(Opcode.RETURN, [this.loopDepth - this.funcLoopDepth])); // if function hasn't returned yet, it should return now
+        res.push(new Instruction(Opcode.EXIT_BLOCK));
+        this.exitFrame(); // parameter frame
+        this.funcLoopDepth = oldFuncLoopDepth;
+        return new InstructionTree([
+            new Instruction(Opcode.JUMP, [res.size]),
+            res,
+            new Instruction(Opcode.LDF, [-(res.size + 1)]),
         ]);
     }
 
