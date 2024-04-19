@@ -152,7 +152,7 @@ function mark(addr: number) {
 }
 function sweep() {
     for (let i = 0; i < N_NODES; ++i) {
-        const addr = i * NODE_SIZE * WORD_SIZE;
+        const addr = i * NODE_SIZE;
         if (heap_tag_get_mark(addr)) {
             heap_tag_set_mark(addr, false);
             continue;
