@@ -1,6 +1,5 @@
 package main
 
-import "fmt"
 /**/
 func add(x int, y int) int {
     x = x + 2
@@ -84,6 +83,6 @@ func main() {
         sum2 = sum2 + 1
     }
 
-    return sum2
+    return reassignTest //1
     
 }
