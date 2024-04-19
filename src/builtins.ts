@@ -37,8 +37,8 @@ export const builtins: [string, (gor: number, num_args: number, args: number[]) 
         heap_temp_node_unstash(); // ref
         heap_temp_node_unstash(); // chan
     }],
-    ["lockMutex", (gor: number, num_args: number, args: number[]) => { // put item in chan
-        if (num_args != 1) throw Error("lockMutex takes 1 argument");
+    ["mutexLock", (gor: number, num_args: number, args: number[]) => { // put item in chan
+        if (num_args != 1) throw Error("mutexLock takes 1 argument");
         const chan = Reference_get(args[0]);
         const ref = Reference_alloc(-1);
         heap_temp_node_stash(ref);
@@ -46,8 +46,37 @@ export const builtins: [string, (gor: number, num_args: number, args: number[]) 
         Goroutine_push_os(gor, ref); // push something to be popped
         heap_temp_node_unstash(); // ref
     }],
-    ["unlockMutex", (gor: number, num_args: number, args: number[]) => { // retrieve item from chan
-        if (num_args != 1) throw Error("unlockMutex takes 1 argument");
+    ["mutexUnlock", (gor: number, num_args: number, args: number[]) => { // retrieve item from chan
+        if (num_args != 1) throw Error("mutexUnlock takes 1 argument");
+        const chan = Reference_get(args[0]);
+        Channel_try_recv(chan, gor);
+        const ref = Reference_alloc(-1);
+        heap_temp_node_stash(ref);
+        Goroutine_push_os(gor, ref); // push something to be popped
+        heap_temp_node_unstash(); // ref
+    }],
+    ["makeSem", (gor: number, num_args: number, args: number[]) => { // semaphore is a channel with many slots
+        if (num_args != 1) throw Error("makeSem takes 1 argument");
+        const num = Number_get(Reference_get(args[0]));
+        const chan = Channel_alloc(num);
+        heap_temp_node_stash(chan);
+        const ref = Reference_alloc(chan);
+        heap_temp_node_stash(ref);
+        Goroutine_push_os(gor, ref);
+        heap_temp_node_unstash(); // ref
+        heap_temp_node_unstash(); // chan
+    }],
+    ["semAcquire", (gor: number, num_args: number, args: number[]) => { // put item in chan
+        if (num_args != 1) throw Error("semAcquire takes 1 argument");
+        const chan = Reference_get(args[0]);
+        const ref = Reference_alloc(-1);
+        heap_temp_node_stash(ref);
+        Channel_try_send(chan, gor, ref);
+        Goroutine_push_os(gor, ref); // push something to be popped
+        heap_temp_node_unstash(); // ref
+    }],
+    ["semRelease", (gor: number, num_args: number, args: number[]) => { // retrieve item from chan
+        if (num_args != 1) throw Error("semRelease takes 1 argument");
         const chan = Reference_get(args[0]);
         Channel_try_recv(chan, gor);
         const ref = Reference_alloc(-1);

@@ -3,15 +3,15 @@ package main
 var a = 1
 
 func f(m Mutex) {
-	lockMutex(m)
+	mutexLock(m)
 	a = a + 1
-	unlockMutex(m)
+	mutexUnlock(m)
 }
 
 func main() {
 	m := makeMutex()
-	lockMutex(m)
+	mutexLock(m)
 	/*go*/ f(m)
-	unlockMutex(m)
+	mutexUnlock(m)
 	return a
 }
