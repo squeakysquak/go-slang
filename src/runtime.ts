@@ -13,8 +13,6 @@ import { Reference_alloc, Reference_get, Reference_set, is_Reference } from "./v
 import { Stack_alloc, Stack_find, Stack_is_empty, Stack_pop, Stack_push } from "./vmtypes/Stack";
 import VMType from "./vmtypes/VMType";
 
-const DEBUG_RUNTIME = true;
-
 const unop_microcode = new Map([
     [Opcode.UPLUS, (data: number) => {
         const num = Number_get(data);
@@ -452,7 +450,7 @@ function debug_show_object(obj: number): any[] {
 
 let goroutines: number;
 let instr_list: Instruction[];
-export function run(instrs: Instruction[]) {
+export function run(instrs: Instruction[], show_instr = true, debug_runtime = true) {
     goroutines = Stack_alloc();
     instr_list = instrs;
     heap_add_root(goroutines);
@@ -474,8 +472,10 @@ export function run(instrs: Instruction[]) {
         }
         const pc = Number_get(Goroutine_get_pc(running_gor));
         const instr = instrs[pc];
-        if (DEBUG_RUNTIME) {
+        if (show_instr) {
             console.log("Goroutine:", running_gor, "PC:", pc, "Ins:", instr);
+        }
+        if (debug_runtime) {
             const os = [];
             const gor_os = heap_get_child(running_gor, 2);
             while (!Stack_is_empty(gor_os)) {
@@ -522,4 +522,5 @@ export function run(instrs: Instruction[]) {
         if (!instr_microcode) throw Error("unknown opcode: " + instr.opcode);
         instr_microcode(running_gor, instr);
     }
+    console.log("Final return value: ", ...debug_show_object(Reference_get(Goroutine_pop_os(main_gor))));
 }
